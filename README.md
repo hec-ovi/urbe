@@ -21,7 +21,7 @@ Geometry and population are pure functions of their inputs: no wall clock, no am
 docker compose up
 ```
 
-Each box's preview runs in a stock node:22 container with the box folder bind-mounted; the first start runs `npm ci` per box into a named volume, later starts reuse it (`docker compose down -v` forces a reinstall).
+Each box's preview runs in a stock node:22 container with the box folder bind-mounted. `compose/box-start.sh` installs a box into a named volume on the first start and again whenever its package-lock.json changes (`docker compose down -v` wipes every install).
 
 | Box | URL | Native alternative (from the box folder) |
 | --- | --- | --- |
@@ -33,7 +33,7 @@ Each box's preview runs in a stock node:22 container with the box folder bind-mo
 | engine | http://localhost:5306 | `npm run dev` |
 | materials | http://localhost:5307 | `npm run preview` |
 
-Cross-box data is mounted read-only where a preview needs it: connections reads the atlas sample blueprint, engine reads the materials theme database. The materials sphere viewer only reads the committed database, so it needs no ComfyUI. naming and quests are libraries and CLIs with no preview server.
+Cross-box data is mounted read-only where a preview needs it: connections reads the atlas sample blueprint; engine reads the atlas samples, connections and interior source, exterior schemas, the simulation build, the materials theme database, and the machine's model store (`URBE_MODELS_DIR`, default `~/models/quaternius`). The materials sphere viewer only reads the committed database, so it needs no ComfyUI. naming and quests are libraries and CLIs with no preview server.
 
 ## The city
 

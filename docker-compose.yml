@@ -1,29 +1,34 @@
 # Urbe preview stack: every box's documented dev/preview server on a fixed port.
-# First start runs `npm ci` per box into a named volume; later starts reuse it.
-# Force a clean reinstall of all boxes: docker compose down -v
+# compose/box-start.sh installs a box into its named volume the first time and again
+# whenever its package-lock.json changes. Wipe every install: docker compose down -v
 
 name: urbe
 
 x-box: &box
   image: node:22
   init: true
+  entrypoint: /work/box-start.sh
+
+x-healthcheck: &healthcheck
+  interval: 15s
+  timeout: 5s
+  retries: 20
+  start_period: 180s
 
 services:
   atlas:
     <<: *box
     working_dir: /work/atlas
-    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run preview -- --host 0.0.0.0 --port 5301 --strictPort"
+    command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5301", "--strictPort"]
     ports:
       - "5301:5301"
     volumes:
+      - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./atlas:/work/atlas
       - atlas_modules:/work/atlas/node_modules
     healthcheck:
+      <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5301/"]
-      interval: 15s
-      timeout: 5s
-      retries: 20
-      start_period: 180s
 
   connections:
     <<: *box
@@ -31,106 +36,110 @@ services:
     # Vite plugin serves the atlas sample blueprint from ATLAS_BLUEPRINT (relative to the box).
     environment:
       ATLAS_BLUEPRINT: ../atlas/samples/city-urbe.json
-    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run dev -- --host 0.0.0.0 --port 5302 --strictPort"
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5302", "--strictPort"]
     ports:
       - "5302:5302"
     volumes:
+      - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./connections:/work/connections
       - connections_modules:/work/connections/node_modules
       - ./atlas:/work/atlas:ro
     healthcheck:
+      <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5302/"]
-      interval: 15s
-      timeout: 5s
-      retries: 20
-      start_period: 180s
 
   exterior:
     <<: *box
     working_dir: /work/exterior
-    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run preview -- --host 0.0.0.0 --port 5303 --strictPort"
+    command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5303", "--strictPort"]
     ports:
       - "5303:5303"
     volumes:
+      - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./exterior:/work/exterior
       - exterior_modules:/work/exterior/node_modules
     healthcheck:
+      <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5303/"]
-      interval: 15s
-      timeout: 5s
-      retries: 20
-      start_period: 180s
 
   interior:
     <<: *box
     working_dir: /work/interior
-    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run preview -- --host 0.0.0.0 --port 5304 --strictPort"
+    command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5304", "--strictPort"]
     ports:
       - "5304:5304"
     volumes:
+      - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./interior:/work/interior
       - interior_modules:/work/interior/node_modules
     healthcheck:
+      <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5304/"]
-      interval: 15s
-      timeout: 5s
-      retries: 20
-      start_period: 180s
 
   simulation:
     <<: *box
     working_dir: /work/simulation
-    # `npm run testbed` builds the 2D preview and serves the box root; PORT picks the port
-    # (per its README), the page lives at /testbed/.
+    # `npm run build` compiles the library to dist/ (the engine imports it); `npm run testbed`
+    # builds the 2D preview and serves the box root on PORT (per its README), page at /testbed/.
     environment:
       PORT: "5305"
-    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run testbed"
+    command: ["sh", "-c", "npm run build && npm run testbed"]
     ports:
       - "5305:5305"
     volumes:
+      - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./simulation:/work/simulation
       - simulation_modules:/work/simulation/node_modules
     healthcheck:
+      <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5305/testbed/"]
-      interval: 15s
-      timeout: 5s
-      retries: 20
-      start_period: 180s
 
   engine:
     <<: *box
     working_dir: /work/engine
-    # Its vite config serves ../materials/themes read-only under /materials/.
-    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run dev -- --host 0.0.0.0 --port 5306 --strictPort"
+    # Dev mode imports the sibling boxes in place: atlas samples, connections and interior
+    # source (interior with its installed dependencies), exterior schemas, the simulation
+    # build, and the materials theme database served under /materials/. The CC0 character,
+    # animation and vehicle packs come from the machine's model store (URBE_MODELS_DIR on
+    # the host, default ~/models/quaternius) served under /models/.
+    environment:
+      URBE_MODELS_DIR: /work/models
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5306", "--strictPort"]
     ports:
       - "5306:5306"
+    depends_on:
+      simulation:
+        condition: service_healthy
     volumes:
+      - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./engine:/work/engine
       - engine_modules:/work/engine/node_modules
+      - ./atlas:/work/atlas:ro
+      - ./connections:/work/connections:ro
+      - ./exterior:/work/exterior:ro
+      - ./interior:/work/interior:ro
+      - interior_modules:/work/interior/node_modules:ro
+      - ./simulation:/work/simulation:ro
       - ./materials/themes:/work/materials/themes:ro
+      - ${URBE_MODELS_DIR:-~/models/quaternius}:/work/models:ro
     healthcheck:
+      <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5306/"]
-      interval: 15s
-      timeout: 5s
-      retries: 20
-      start_period: 180s
 
   materials:
     <<: *box
     working_dir: /work/materials
     # Sphere viewer over the committed theme database; the read path needs no ComfyUI.
-    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run preview -- --host 0.0.0.0 --port 5307 --strictPort"
+    command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5307", "--strictPort"]
     ports:
       - "5307:5307"
     volumes:
+      - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./materials:/work/materials
       - materials_modules:/work/materials/node_modules
     healthcheck:
+      <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5307/"]
-      interval: 15s
-      timeout: 5s
-      retries: 20
-      start_period: 180s
 
 volumes:
   atlas_modules:
