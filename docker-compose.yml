@@ -1,0 +1,141 @@
+# Urbe preview stack: every box's documented dev/preview server on a fixed port.
+# First start runs `npm ci` per box into a named volume; later starts reuse it.
+# Force a clean reinstall of all boxes: docker compose down -v
+
+name: urbe
+
+x-box: &box
+  image: node:22
+  init: true
+
+services:
+  atlas:
+    <<: *box
+    working_dir: /work/atlas
+    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run preview -- --host 0.0.0.0 --port 5301 --strictPort"
+    ports:
+      - "5301:5301"
+    volumes:
+      - ./atlas:/work/atlas
+      - atlas_modules:/work/atlas/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5301/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
+
+  connections:
+    <<: *box
+    working_dir: /work/connections
+    # Vite plugin serves the atlas sample blueprint from ATLAS_BLUEPRINT (relative to the box).
+    environment:
+      ATLAS_BLUEPRINT: ../atlas/samples/city-urbe.json
+    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run dev -- --host 0.0.0.0 --port 5302 --strictPort"
+    ports:
+      - "5302:5302"
+    volumes:
+      - ./connections:/work/connections
+      - connections_modules:/work/connections/node_modules
+      - ./atlas:/work/atlas:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5302/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
+
+  exterior:
+    <<: *box
+    working_dir: /work/exterior
+    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run preview -- --host 0.0.0.0 --port 5303 --strictPort"
+    ports:
+      - "5303:5303"
+    volumes:
+      - ./exterior:/work/exterior
+      - exterior_modules:/work/exterior/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5303/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
+
+  interior:
+    <<: *box
+    working_dir: /work/interior
+    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run preview -- --host 0.0.0.0 --port 5304 --strictPort"
+    ports:
+      - "5304:5304"
+    volumes:
+      - ./interior:/work/interior
+      - interior_modules:/work/interior/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5304/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
+
+  simulation:
+    <<: *box
+    working_dir: /work/simulation
+    # `npm run testbed` compiles to testbed/dist; the repo root is then served statically
+    # (per its README) and the page lives at /testbed/. chown keeps the built files
+    # owned by the host user instead of root.
+    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run testbed && chown -R --reference=. testbed/dist; python3 -m http.server 5305 --bind 0.0.0.0"
+    ports:
+      - "5305:5305"
+    volumes:
+      - ./simulation:/work/simulation
+      - simulation_modules:/work/simulation/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5305/testbed/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
+
+  engine:
+    <<: *box
+    working_dir: /work/engine
+    # Its vite config serves ../materials/themes read-only under /materials/.
+    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run dev -- --host 0.0.0.0 --port 5306 --strictPort"
+    ports:
+      - "5306:5306"
+    volumes:
+      - ./engine:/work/engine
+      - engine_modules:/work/engine/node_modules
+      - ./materials/themes:/work/materials/themes:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5306/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
+
+  materials:
+    <<: *box
+    working_dir: /work/materials
+    # Sphere viewer over the committed theme database; the read path needs no ComfyUI.
+    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run preview -- --host 0.0.0.0 --port 5307 --strictPort"
+    ports:
+      - "5307:5307"
+    volumes:
+      - ./materials:/work/materials
+      - materials_modules:/work/materials/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5307/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
+
+volumes:
+  atlas_modules:
+  connections_modules:
+  exterior_modules:
+  interior_modules:
+  simulation_modules:
+  engine_modules:
+  materials_modules:
