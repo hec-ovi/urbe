@@ -21,7 +21,7 @@ Geometry and population are pure functions of their inputs: no wall clock, no am
 docker compose up
 ```
 
-Each box's preview runs in a stock node:22 container with the box folder bind-mounted. `compose/box-start.sh` installs a box into a named volume on the first start and again whenever its package-lock.json changes (`docker compose down -v` wipes every install).
+Each box's preview runs in a stock node:22 container with the box folder bind-mounted. `compose/box-start.sh` installs a box into a named volume on the first start and again whenever its package-lock.json changes (`docker compose down -v` wipes every install), then runs the box as the host user so what it writes into the folder stays yours (`BOX_UID=$(id -u) BOX_GID=$(id -g) docker compose up` when your ids are not 1000).
 
 | Box | URL | Native alternative (from the box folder) |
 | --- | --- | --- |
