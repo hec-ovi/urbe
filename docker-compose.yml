@@ -80,10 +80,11 @@ services:
   simulation:
     <<: *box
     working_dir: /work/simulation
-    # `npm run testbed` compiles to testbed/dist; the repo root is then served statically
-    # (per its README) and the page lives at /testbed/. chown keeps the built files
-    # owned by the host user instead of root.
-    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run testbed && chown -R --reference=. testbed/dist; python3 -m http.server 5305 --bind 0.0.0.0"
+    # `npm run testbed` builds the 2D preview and serves the box root; PORT picks the port
+    # (per its README), the page lives at /testbed/.
+    environment:
+      PORT: "5305"
+    command: sh -c "[ -e node_modules/.ready ] || { npm ci --no-audit --no-fund && touch node_modules/.ready; }; npm run testbed"
     ports:
       - "5305:5305"
     volumes:
