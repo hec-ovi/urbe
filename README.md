@@ -30,10 +30,11 @@ Each box's preview runs in a stock node:22 container with the box folder bind-mo
 | exterior | http://localhost:5303 | `npm run preview` |
 | interior | http://localhost:5304 | `npm run preview` |
 | simulation | http://localhost:5305/testbed/ | `npm run testbed`, then serve the box root statically |
+| quests | no page | `npm run watch`: compiles the library to dist/ for the engine's talk route, healthy once dist/index.js exists |
 | engine | http://localhost:5306 | `npm run dev` |
 | materials | http://localhost:5307 | `npm run preview` |
 
-Cross-box data is mounted read-only where a preview needs it: connections reads the atlas sample blueprint; engine reads the atlas samples, connections and interior source, exterior schemas, the simulation build, the materials theme database, and the machine's model store (`URBE_MODELS_DIR`, default `~/models/quaternius`). The materials sphere viewer only reads the committed database, so it needs no ComfyUI. naming and quests are libraries and CLIs with no preview server.
+Cross-box data is mounted read-only where a preview needs it: connections reads the atlas sample blueprint; engine reads the atlas samples, connections and interior source, exterior schemas, the simulation build, the materials theme database, and the machine's model store (`URBE_MODELS_DIR`, default `~/models/quaternius`). The materials sphere viewer only reads the committed database, so it needs no ComfyUI. naming is a library and CLI with no preview server; quests is a library whose build the engine imports (questline runtime in the browser, NPC dialog on the dev server through the machine's OpenAI-compatible model server at `LLM_BASE_URL`, default host port 8080).
 
 ## The city
 

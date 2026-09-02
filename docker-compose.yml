@@ -107,6 +107,22 @@ services:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5305/testbed/"]
 
+  quests:
+    <<: *box
+    working_dir: /work/quests
+    # `npm run watch` compiles the library to dist/ (the engine's talk route imports it) and
+    # keeps it current; healthy once the build exists.
+    environment:
+      <<: *user
+    command: ["npm", "run", "watch"]
+    volumes:
+      - ./compose/box-start.sh:/work/box-start.sh:ro
+      - ./quests:/work/quests
+      - quests_modules:/work/quests/node_modules
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "test", "-f", "/work/quests/dist/index.js"]
+
   engine:
     <<: *box
     working_dir: /work/engine
@@ -114,19 +130,27 @@ services:
     # source (interior with its installed dependencies), exterior schemas, the simulation
     # build, and the materials theme database served under /materials/. The CC0 character,
     # animation and vehicle packs come from the machine's model store (URBE_MODELS_DIR on
-    # the host, default ~/models/quaternius) served under /models/.
+    # the host, default ~/models/quaternius) served under /models/. NPC dialog runs on the
+    # machine's OpenAI-compatible model server (LLM_BASE_URL on the host, default port 8080).
     environment:
       <<: *user
       URBE_MODELS_DIR: /work/models
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8080/v1}
+      LLM_MODEL: ${LLM_MODEL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5306", "--strictPort"]
     ports:
       - "5306:5306"
     depends_on:
       simulation:
         condition: service_healthy
+      quests:
+        condition: service_healthy
     volumes:
       - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./engine:/work/engine
+      - ./quests:/work/quests:ro
       - engine_modules:/work/engine/node_modules
       - ./atlas:/work/atlas:ro
       - ./connections:/work/connections:ro
@@ -163,5 +187,6 @@ volumes:
   exterior_modules:
   interior_modules:
   simulation_modules:
+  quests_modules:
   engine_modules:
   materials_modules:
