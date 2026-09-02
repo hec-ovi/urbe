@@ -18,23 +18,31 @@ Geometry and population are pure functions of their inputs: no wall clock, no am
 ## Run everything
 
 ```
-docker compose up
+docker compose up -d
 ```
 
-Each box's preview runs in a stock node:22 container with the box folder bind-mounted. `compose/box-start.sh` installs a box into a named volume on the first start and again whenever its package-lock.json changes (`docker compose down -v` wipes every install), then runs the box as the host user so what it writes into the folder stays yours (`BOX_UID=$(id -u) BOX_GID=$(id -g) docker compose up` when your ids are not 1000).
+`docker compose ps` shows startup and health. `docker compose logs -f <service>` follows one box, and `docker compose down` stops the stack. Each preview runs in a stock node:22 container with its box bind-mounted. `compose/box-start.sh` installs dependencies into a named volume on first start and whenever `package-lock.json` changes. `docker compose down -v` also deletes those install volumes.
 
-| Box | URL | Native alternative (from the box folder) |
-| --- | --- | --- |
-| atlas | http://localhost:5301 | `npm run preview` |
-| connections | http://localhost:5302 | `npm run dev` |
-| exterior | http://localhost:5303 | `npm run preview` |
-| interior | http://localhost:5304 | `npm run preview` |
-| simulation | http://localhost:5305/testbed/ | `npm run testbed`, then serve the box root statically |
-| quests | no page | `npm run watch`: compiles the library to dist/ for the engine's talk route, healthy once dist/index.js exists |
-| engine | http://localhost:5306 | `npm run dev` |
-| materials | http://localhost:5307 | `npm run preview` |
+Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine world, and the Quests build.
 
-Cross-box data is mounted read-only where a preview needs it: connections reads the atlas sample blueprint; engine reads the atlas samples, connections and interior source, exterior schemas, the simulation build, the materials theme database, and the machine's model store (`URBE_MODELS_DIR`, default `~/models/quaternius`). The materials sphere viewer only reads the committed database, so it needs no ComfyUI. naming is a library and CLI with no preview server; quests is a library whose build the engine imports (questline runtime in the browser, NPC dialog on the dev server through the machine's OpenAI-compatible model server at `LLM_BASE_URL`, default host port 8080).
+### Preview services and ports
+
+| Port | Preview | What it shows | Native command |
+| --- | --- | --- | --- |
+| 5301 | [Atlas](http://localhost:5301/) | City creation, streets, parcels, highways, rail, subway, stations, and 2D/3D diagnostics | `cd atlas && npm run preview` |
+| 5302 | [Connections](http://localhost:5302/) | Links, apertures, lanes, turns, sidewalks, crossings, and the connected movement graph | `cd connections && npm run dev` |
+| 5303 | [Exterior](http://localhost:5303/) | Generated building shells, facade grids, openings, roofs, and exterior geometry | `cd exterior && npm run preview` |
+| 5304 | [Interior](http://localhost:5304/) | Rooms, doors, stairs, lifts, furniture, lights, anchors, and interior navigation | `cd interior && npm run preview` |
+| 5305 | [Simulation](http://localhost:5305/testbed/) | Population, homes, jobs, routines, schedules, and movement testbed | `cd simulation && npm run testbed` |
+| 5306 | [Engine game](http://localhost:5306/?mode=game) | Integrated playable city using Atlas, Connections, buildings, interiors, materials, simulation, and quests | `cd engine && npm run dev` |
+| 5306 | [Engine city](http://localhost:5306/?mode=city&out=/out/city-tiny) | Assembled city overview and parcel inspection | same Engine service |
+| 5307 | [Materials](http://localhost:5307/) | Material catalog and PBR sphere preview | `cd materials && npm run preview` |
+
+The Engine game link is the combined result. The other pages isolate one layer so geometry, data, and materials can be inspected before assembly. Port 5306 defaults to WebGPU; add `&backend=webgl` to an Engine URL for its WebGL fallback.
+
+Quests runs inside Compose without a public port because it watches and rebuilds the library consumed by Engine. Naming is a CLI/library and has no preview server.
+
+Cross-box data is mounted read-only where a preview needs it: connections reads the Atlas sample blueprint; Exterior and Interior read the Materials theme database; Engine reads Atlas samples, Connections and Interior source, Exterior schemas, the Simulation build, the Materials theme database, and the machine's model store (`URBE_MODELS_DIR`, default `~/models/quaternius`). The Materials sphere viewer only reads the committed database, so it needs no ComfyUI. Naming is a library and CLI with no preview server. Quests is a library whose build Engine imports; questline runtime runs in the browser, while NPC dialog uses the dev server and the machine's OpenAI-compatible model server at `LLM_BASE_URL`, default host port 8080.
 
 ## The city
 

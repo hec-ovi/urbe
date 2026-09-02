@@ -68,6 +68,7 @@ services:
       - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./exterior:/work/exterior
       - exterior_modules:/work/exterior/node_modules
+      - ./materials/themes:/work/materials/themes:ro
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5303/"]
@@ -84,6 +85,7 @@ services:
       - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./interior:/work/interior
       - interior_modules:/work/interior/node_modules
+      - ./materials/themes:/work/materials/themes:ro
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5304/"]
