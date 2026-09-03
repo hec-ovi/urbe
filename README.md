@@ -25,6 +25,8 @@ docker compose up -d
 
 Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine world, and the Quests build.
 
+Run `./compose/check-boxes.sh` to execute every box's contract tests, type checks, and production builds in one pass.
+
 ### Preview services and ports
 
 | Port | Preview | What it shows | Native command |
