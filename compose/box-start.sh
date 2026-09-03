@@ -12,5 +12,8 @@ if [ "$want" != "$have" ]; then
   echo "$want" > node_modules/.lock-hash
 fi
 chown -R "$uid:$gid" node_modules
-export HOME=/tmp
-exec setpriv --reuid="$uid" --regid="$gid" --clear-groups "$@"
+runtime_cache="/tmp/urbe-box-$uid"
+mkdir -p "$runtime_cache"
+chown "$uid:$gid" "$runtime_cache"
+exec setpriv --reuid="$uid" --regid="$gid" --clear-groups \
+  env XDG_CACHE_HOME="$runtime_cache" NPM_CONFIG_CACHE="$runtime_cache/npm" "$@"

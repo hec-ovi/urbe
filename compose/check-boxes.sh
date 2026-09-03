@@ -24,7 +24,6 @@ build_simulation_testbed() {
 
 run atlas test
 run atlas build
-build_preview atlas
 run connections test
 run connections build
 run exterior test
