@@ -57,7 +57,20 @@ if (JSON.stringify(ids(world)) !== expected || JSON.stringify(ids(manifest)) !==
 if (manifest.atlasVersion !== atlas.meta.version) {
   throw new Error(`engine manifest uses Atlas ${manifest.atlasVersion}, expected ${atlas.meta.version}`);
 }
-console.log(`ok  integrated   ${manifest.parcels.length} parcels at Atlas ${manifest.atlasVersion}`);
+const rooftop = manifest.rooftopSpans;
+if (!rooftop || rooftop.meta?.schemaVersion !== '1.0.0' || !Array.isArray(rooftop.spans)) {
+  throw new Error('engine manifest has no Connections rooftop span document 1.0.0');
+}
+const parcelIds = new Set(ids(manifest));
+for (const span of rooftop.spans) {
+  if (!parcelIds.has(span.a?.buildingId) || !parcelIds.has(span.b?.buildingId)) {
+    throw new Error(`rooftop span ${span.id ?? '<unknown>'} references a parcel outside the manifest`);
+  }
+  if (!Array.isArray(span.path) || span.path.length < 3 || !(span.thickness > 0)) {
+    throw new Error(`rooftop span ${span.id ?? '<unknown>'} has invalid render geometry`);
+  }
+}
+console.log(`ok  integrated   ${manifest.parcels.length} parcels at Atlas ${manifest.atlasVersion}, ${rooftop.spans.length} rooftop spans`);
 NODE
 
 docker compose exec -T quests test -s dist/index.js
