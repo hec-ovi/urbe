@@ -71,4 +71,4 @@ Data flows `atlas -> connections -> buildingforge -> interiorforge -> assembly` 
 
 ## Working on a box
 
-Read `docs/INDEX.md` and the `CONTRACT.md` of the box you need. A contract is enough to use a box: purpose, inputs, outputs, closed error set, invariants, dependencies. Every box runs standalone against its own fixtures, so no box waits on another to be testable.
+Start with this box map, then read the `CONTRACT.md` of the box you need. A contract is enough to use a box: purpose, inputs, outputs, closed error set, invariants, dependencies. Every box runs standalone against its own fixtures, so no box waits on another to be testable.
