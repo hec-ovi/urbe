@@ -6,7 +6,7 @@ The detailed public overview is [README.md](../README.md). This map records the 
 
 - atlas: deterministic city plan with streets, parcels, transit and optional hydrology. Depends on: Interior core feasibility and Exterior floor constants as mirrored compatibility contracts; no sibling runtime data.
 - connections: fitted building links and the walk, road, transit and air networks. Depends on: atlas.
-- exterior: one building shell, openings, facade services and per-floor blueprint. Depends on: atlas, connections, materials.
+- exterior: one building shell, openings, facade services and per-floor blueprint. Depends on: atlas, connections, interior core feasibility, materials.
 - interior: furnished floor geometry, rooms, vertical circulation, NPC anchors and navigation. Depends on: exterior, materials.
 - materials: themed PBR maps, variants, water surfaces, fitted decals and their schema-checked database. Depends on: Atlas hydrology material-key binding data; no Atlas runtime import.
 - simulation: deterministic population identities, homes, jobs, routines, continuity and saves. Depends on: atlas, connections, interior, naming.
