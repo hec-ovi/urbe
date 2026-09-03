@@ -7,7 +7,7 @@ The project is nine boxes, each an independent repository coupled only by its `C
 ## The world, layer by layer
 
 1. **Plan.** A seed and a few parameters produce a city blueprint: districts with wealth tiers, a tensor field street hierarchy with real widths and sidewalks, typed parcels with 3D envelopes, bus, subway and train networks, and optional lagoons, rivers or sea coasts.
-2. **Connect.** Bridges, AC tubes, wires and tunnels between buildings, each with the exact aperture the building has to carve, plus the walk graph with signal synced crossings, car lanes, transit timetables and air corridors.
+2. **Connect.** A base pass fits bridges, AC tubes, wires and tunnels between buildings, each with the exact aperture the building has to carve, plus the walk graph with signal synced crossings, car lanes, transit timetables and air corridors. After shells publish roof attachments, a second pass selects sparse antenna pairs and fits collision-checked 3D catenaries over explicit obstacle volumes.
 3. **Build.** Every parcel becomes a GLB shell with split grammar facades, carved openings, balconies and roof artifacts, then fills with rooms, walkable stairs, elevators, furniture and PBR textures. Every floor exists and is reachable.
 4. **Populate.** The city lives statistically. Crowds are counts; one NPC gets a home, a job, a shift, a family and a gapless weekly routine when an interaction first needs it, and stays that person from then on.
 5. **Name and tell.** An agentic pass names every district, station, line and business against a theme prompt and writes the themed NPC types. The quest layer writes narrative first, adapts it into validated branching gameplay, and bundles objectives, investigation scenes, mission objects, fixed interaction anchors and host capability checks for the engine.
@@ -96,7 +96,7 @@ Three boxes solve a problem that has nothing to do with cities, so they ship und
 | [interiorforge](https://github.com/hec-ovi/interiorforge) | interior | GLB shell to furnished textured interior, plus NPC anchors, routines and nav data |
 | [pbrforge](https://github.com/hec-ovi/pbrforge) | materials | Themed PBR material library with a ComfyUI generator behind it, resolved by `theme/kind/tier` key |
 
-Data flows `atlas -> connections -> buildingforge -> interiorforge -> assembly` and `atlas -> naming -> simulation -> quests -> assembly`; pbrforge feeds the two geometry tools and the engine.
+Data flows `atlas -> connections/base -> buildingforge -> interiorforge -> assembly`, `buildingforge -> connections/rooftop-spans -> assembly`, and `atlas -> naming -> simulation -> quests -> assembly`; pbrforge feeds the two geometry tools and the engine.
 
 ## Working on a box
 
