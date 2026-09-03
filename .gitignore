@@ -8,7 +8,16 @@ naming/
 quests/
 engine/
 docs/IDEA.md
-docs/
+docs/END_STATE.md
+docs/PLAN.md
+docs/PUBLISH.md
+docs/REQUIREMENTS.md
+docs/feedback.md
+docs/feedback2.md
+docs/questline-history-sidejobs-creation.md
+docs/expected/
+docs/gameplayexpected/
+docs/issues/
 inbox/
 .research/
 CLAUDE.md
