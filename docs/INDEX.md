@@ -11,7 +11,7 @@ The detailed public overview is [README.md](../README.md). This map records the 
 - materials: themed PBR maps, variants, water surfaces, fitted decals and their schema-checked database. Depends on: Atlas hydrology material-key binding data; no Atlas runtime import.
 - simulation: deterministic population identities, homes, jobs, routines, continuity and saves. Depends on: atlas, connections, interior, naming.
 - naming: themed place names, NPC type prompts, name pools and business exports. Depends on: atlas, optional simulation statistics, materials.
-- quests: two-stage story and gameplay authoring, typed flows, dialog context and engine handoff bundles. Depends on: naming, simulation, engine investigation and mission-asset contracts.
+- quests: two-stage story and gameplay authoring, typed flows, dialog context and engine handoff bundles. Depends on: atlas world input, naming, simulation, engine investigation and mission-asset contracts.
 - engine: city assembly and first-person play with streamed interiors, characters, physics, transit, quests, investigations and saves. Depends on: every sibling contract.
 
 ## Data flow
