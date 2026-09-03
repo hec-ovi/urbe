@@ -2,16 +2,16 @@
 
 A deterministic city sandbox. One seed regenerates the whole world byte-identical: the street plan, the buildings, the rooms inside them, the people who live there. On top of that fixed world an LLM layer writes the names, the NPC types and the stories, and a three.js WebGPU client plays the result first person at street level.
 
-The project is nine boxes, each an independent repository coupled only by its `CONTRACT.md`. Box map and dependency edges: [docs/INDEX.md](docs/INDEX.md).
+The project is nine boxes, each an independent repository coupled only by its `CONTRACT.md`. The box map and dependency edges are summarized below.
 
 ## The world, layer by layer
 
-1. **Plan.** A seed and a few parameters produce a city blueprint: districts with wealth tiers, a tensor field street hierarchy with real widths and sidewalks, typed parcels with 3D envelopes, and bus, subway and train networks.
+1. **Plan.** A seed and a few parameters produce a city blueprint: districts with wealth tiers, a tensor field street hierarchy with real widths and sidewalks, typed parcels with 3D envelopes, bus, subway and train networks, and optional lagoons, rivers or sea coasts.
 2. **Connect.** Bridges, AC tubes, wires and tunnels between buildings, each with the exact aperture the building has to carve, plus the walk graph with signal synced crossings, car lanes, transit timetables and air corridors.
 3. **Build.** Every parcel becomes a GLB shell with split grammar facades, carved openings, balconies and roof artifacts, then fills with rooms, walkable stairs, elevators, furniture and PBR textures. Every floor exists and is reachable.
 4. **Populate.** The city lives statistically. Crowds are counts; one NPC gets a home, a job, a shift, a family and a gapless weekly routine the moment a player talks to it, and stays that person from then on.
-5. **Name and tell.** An agentic pass names every district, station, line and business against a theme prompt and writes the themed NPC types; the quest layer builds the story, the questlines and the dialog context on top.
-6. **Play.** The engine assembles all of it into one scene: night streets, neon, traffic on the lane graph, doors that open into interiors in the same scene with no loading screen.
+5. **Name and tell.** An agentic pass names every district, station, line and business against a theme prompt and writes the themed NPC types. The quest layer writes narrative first, adapts it into validated branching gameplay, and bundles objectives, investigation scenes and mission objects for the engine.
+6. **Play.** The engine assembles all of it into one scene: night streets, neon, traffic and public transport on generated networks, doors into streamed interiors, quest interactions, persistent investigation scenes and saved playthroughs.
 
 Geometry and population are pure functions of their inputs: no wall clock, no ambient randomness, no LLM inside generation. The language model adds names, types and text on top of a world that is already fixed.
 
@@ -50,12 +50,12 @@ The layers that only make sense as a city.
 
 | Repository | Box | What it does |
 | --- | --- | --- |
-| [urbe-atlas](../urbe-atlas) | atlas | Seed to 2D city blueprint: districts, streets, sidewalks, typed parcels, transit |
+| [urbe-atlas](../urbe-atlas) | atlas | Seed to 2D city blueprint: districts, streets, sidewalks, typed parcels, transit, hydrology |
 | [urbe-transit](../urbe-transit) | connections | Inter-building links with exact apertures, walk graph, lanes, signals, timetables, air corridors |
 | [urbe-population](../urbe-population) | simulation | Statistical NPC population with lazy deterministic instantiation |
 | [urbe-namer](../urbe-namer) | naming | LLM naming pass and themed NPC type set |
-| [urbe-quests](../urbe-quests) | quests | Story, questline flows and NPC dialog context |
-| [urbe-engine](../urbe-engine) | engine | three.js WebGPU assembly and the playable first person city |
+| [urbe-quests](../urbe-quests) | quests | Two-stage story authoring, typed quest flows, engine handoff and NPC dialog context |
+| [urbe-engine](../urbe-engine) | engine | three.js WebGPU assembly, gameplay, transit, investigations and saves |
 
 ## The standalone toolkits
 
