@@ -18,12 +18,12 @@ Geometry and population are pure functions of their inputs: no wall clock, no am
 ## Run everything
 
 ```
-docker compose up -d
+docker compose up -d --build
 ```
 
-`docker compose ps` shows startup and health. `docker compose logs -f <service>` follows one box, and `docker compose down` stops the stack. Each preview runs in a stock node:22 container with its box bind-mounted. `compose/box-start.sh` installs dependencies into a named volume on first start and whenever `package-lock.json` changes. `docker compose down -v` also deletes those install volumes.
+`docker compose ps` shows startup and health. `docker compose logs -f <service>` follows one service, and `docker compose down` stops the stack. Each preview runs in a stock node:22 container with its box bind-mounted. `compose/box-start.sh` installs dependencies into a named volume on first start and whenever `package-lock.json` changes. `docker compose down -v` also deletes those install volumes.
 
-Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine world, and the Quests build.
+Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine world, the proxied speech capabilities and health, and the Quests build.
 
 Run `./compose/check-boxes.sh` to execute every box's contract tests, type checks, and production builds in one pass.
 
@@ -44,7 +44,9 @@ The Engine game link is the combined result. The other pages isolate one layer s
 
 Quests runs inside Compose without a public port because it watches and rebuilds the library consumed by Engine. Naming is a CLI/library and has no preview server.
 
-Cross-box data is mounted read-only where a preview needs it: connections reads the Atlas sample blueprint; Exterior and Interior read the Materials theme database; Engine reads Atlas samples, Connections and Interior source, Exterior schemas, the Simulation build, the Materials theme database, and the machine's model store (`URBE_MODELS_DIR`, default `~/models/quaternius`). The Materials sphere viewer only reads the committed database, so it needs no ComfyUI. Naming is a library and CLI with no preview server. Quests is a library whose build Engine imports; questline runtime runs in the browser, while NPC dialog uses the dev server and the machine's OpenAI-compatible model server at `LLM_BASE_URL`, default host port 8080.
+Engine owns a nested local speech service built from `engine/src/game/voice/runtime`. Set `URBE_HF_MODELS_DIR` to the host Hugging Face model store (default `~/models/hf`). Compose mounts it read-only, waits for Chatterbox Nano and faster-whisper to report ready, then starts Engine with the service at `http://speech:8091`. The speech container has no host port; Engine exposes the checked `/api/speech/*` proxy. Its persistent CPU model process measured about 4.4 GB with both models loaded. The preview check reads capabilities and health from that process without starting a smoke process.
+
+Cross-box data is mounted read-only where a preview needs it: connections reads the Atlas sample blueprint; Exterior and Interior read the Materials theme database; Engine reads Atlas samples, Connections and Interior source, Exterior schemas, the Simulation build, the Materials theme database, and the machine's model store (`URBE_MODELS_DIR`, default `~/models/quaternius`). The Materials sphere viewer only reads the committed database, so it needs no ComfyUI. Naming is a library and CLI with no preview server. Quests is a library whose build Engine imports; questline runtime runs in the browser, while NPC dialog uses the dev server and the machine's OpenAI-compatible model server at `LLM_BASE_URL`, default host port 8080. NPC speech synthesis and microphone transcription use Engine's nested local speech service.
 
 ## The city
 

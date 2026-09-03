@@ -125,6 +125,18 @@ services:
       <<: *healthcheck
       test: ["CMD", "test", "-f", "/work/quests/dist/index.js"]
 
+  # Engine-owned local TTS and STT runtime. It is reachable only inside the
+  # Compose network; the Engine dev server exposes its checked proxy routes.
+  speech:
+    build: ./engine/src/game/voice/runtime
+    init: true
+    volumes:
+      - ${URBE_HF_MODELS_DIR:-~/models/hf}:/models/hf:ro
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import json, urllib.request; result=json.load(urllib.request.urlopen('http://localhost:8091/health', timeout=90)); assert result.get('status') == 'ready'"]
+      timeout: 2m
+
   engine:
     <<: *box
     working_dir: /work/engine
@@ -139,6 +151,7 @@ services:
       URBE_MODELS_DIR: /work/models
       LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8080/v1}
       LLM_MODEL: ${LLM_MODEL:-}
+      URBE_SPEECH_URL: http://speech:8091
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5306", "--strictPort"]
@@ -148,6 +161,8 @@ services:
       simulation:
         condition: service_healthy
       quests:
+        condition: service_healthy
+      speech:
         condition: service_healthy
     volumes:
       - ./compose/box-start.sh:/work/box-start.sh:ro
