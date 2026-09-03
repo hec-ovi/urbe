@@ -50,12 +50,12 @@ The layers that only make sense as a city.
 
 | Repository | Box | What it does |
 | --- | --- | --- |
-| [urbe-atlas](../urbe-atlas) | atlas | Seed to 2D city blueprint: districts, streets, sidewalks, typed parcels, transit, hydrology |
-| [urbe-transit](../urbe-transit) | connections | Inter-building links with exact apertures, walk graph, lanes, signals, timetables, air corridors |
-| [urbe-population](../urbe-population) | simulation | Statistical NPC population with lazy deterministic instantiation |
-| [urbe-namer](../urbe-namer) | naming | LLM naming pass and themed NPC type set |
-| [urbe-quests](../urbe-quests) | quests | Two-stage story authoring, typed quest flows, engine handoff and NPC dialog context |
-| [urbe-engine](../urbe-engine) | engine | three.js WebGPU assembly, gameplay, transit, investigations and saves |
+| [urbe-atlas](atlas/) | atlas | Seed to 2D city blueprint: districts, streets, sidewalks, typed parcels, transit, hydrology |
+| [urbe-transit](connections/) | connections | Inter-building links with exact apertures, walk graph, lanes, signals, timetables, air corridors |
+| [urbe-population](simulation/) | simulation | Statistical NPC population with lazy deterministic instantiation |
+| [urbe-namer](naming/) | naming | LLM naming pass and themed NPC type set |
+| [urbe-quests](quests/) | quests | Two-stage story authoring, typed quest flows, engine handoff and NPC dialog context |
+| [urbe-engine](engine/) | engine | three.js WebGPU assembly, gameplay, transit, investigations and saves |
 
 ## The standalone toolkits
 
@@ -63,9 +63,9 @@ Three boxes solve a problem that has nothing to do with cities, so they ship und
 
 | Repository | Box | What it does |
 | --- | --- | --- |
-| [buildingforge](../buildingforge) | exterior | Footprint to GLB building: split grammar facades, carved openings, signage, per-floor blueprint |
-| [interiorforge](../interiorforge) | interior | GLB shell to furnished textured interior, plus NPC anchors, routines and nav data |
-| [pbrforge](../pbrforge) | materials | Themed PBR material library with a ComfyUI generator behind it, resolved by `theme/kind/tier` key |
+| [buildingforge](exterior/) | exterior | Footprint to GLB building: split grammar facades, carved openings, signage, per-floor blueprint |
+| [interiorforge](interior/) | interior | GLB shell to furnished textured interior, plus NPC anchors, routines and nav data |
+| [pbrforge](materials/) | materials | Themed PBR material library with a ComfyUI generator behind it, resolved by `theme/kind/tier` key |
 
 Data flows `atlas -> connections -> buildingforge -> interiorforge -> assembly` and `atlas -> naming -> simulation -> quests -> assembly`; pbrforge feeds the two geometry tools and the engine.
 
