@@ -22,4 +22,4 @@ The detailed public overview is [README.md](../README.md). This map records the 
 
 Materials feeds exterior, interior and engine. Naming may use simulation statistics, and falls back to Atlas statistics. Quests emits separate questline, objective, investigation, mission-asset, item-binding, fixed mechanic anchor and host capability documents for Engine.
 
-Engine nests the renderer-neutral mission-asset creator and local speech runtime behind its own contracts.
+Engine nests the renderer-neutral mission-asset creator behind its own contract.

@@ -31,7 +31,7 @@ git clone git@github.com:hec-ovi/urbe-quests.git quests
 git clone git@github.com:hec-ovi/urbe-engine.git engine
 ```
 
-Compose requires Docker Compose, local Chatterbox Nano and faster-whisper weights in `URBE_HF_MODELS_DIR` (default `~/models/hf`), and Engine's character, animation and vehicle tree in `URBE_MODELS_DIR` (default `~/models/quaternius`). It does not download model weights or game assets. From the coordinator root, `(cd engine && npm run audit-character-assets)` verifies the game asset tree.
+Compose requires Docker Compose and Engine's character, animation and vehicle tree in `URBE_MODELS_DIR` (default `~/models/quaternius`). It does not download game assets. From the coordinator root, `(cd engine && npm run audit-character-assets)` verifies the game asset tree.
 
 ```
 docker compose up -d --build
@@ -41,9 +41,9 @@ docker compose up -d --build
 
 The one-shot `engine-world` service assembles `engine/out/city-tiny` from the committed Atlas sample before Engine starts. Generated world files remain ignored by Engine's repository and are rebuilt by a fresh stack.
 
-Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine world, the proxied speech capabilities and health, and the Quests build.
+Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine world, and the Quests build.
 
-The host gate requires Node.js 22, npm and uv. Compose dependency volumes do not populate host `node_modules`.
+The host gate requires Node.js 22 and npm. Compose dependency volumes do not populate host `node_modules`.
 
 ```sh
 for box in atlas connections exterior interior materials naming quests simulation engine; do
@@ -71,9 +71,7 @@ The Engine game link is the assembled sample runtime. Catalog games can also car
 
 Quests runs inside Compose without a public port because it watches and rebuilds the library consumed by Engine. Naming is a CLI/library and has no preview server.
 
-Engine owns a nested local speech service built from `engine/src/game/voice/runtime`. Set `URBE_HF_MODELS_DIR` to the host Hugging Face model store (default `~/models/hf`). Compose mounts it read-only, waits for Chatterbox Nano and faster-whisper to report ready, then starts Engine with the service at `http://speech:8091`. The speech container has no host port; Engine exposes the checked `/api/speech/*` proxy. Its persistent CPU model process measured about 4.4 GB peak resident memory with both models loaded. The preview check reads capabilities and health from that process without starting a smoke process.
-
-Cross-box data is mounted read-only where a preview needs it: connections reads the Atlas sample blueprint; Exterior and Interior read the Materials theme database; Engine reads the Atlas samples and built CLI, Connections, Exterior and Interior source, the Simulation and Quests builds, the Materials theme database, and the machine's model store (`URBE_MODELS_DIR`, default `~/models/quaternius`). Compose also mounts the sibling dependency volumes required by those imports and CLIs. The Materials sphere viewer only reads the committed database, so it needs no ComfyUI. Naming is a library and CLI with no preview server. Quests is a library whose build Engine imports; questline runtime runs in the browser, while NPC dialog uses the dev server and the machine's OpenAI-compatible model server at `LLM_BASE_URL`, default host port 8080. NPC speech synthesis and microphone transcription use Engine's nested local speech service.
+Cross-box data is mounted read-only where a preview needs it: connections reads the Atlas sample blueprint; Exterior and Interior read the Materials theme database; Engine reads the Atlas samples and built CLI, Connections, Exterior and Interior source, the Simulation and Quests builds, the Materials theme database, and the machine's model store (`URBE_MODELS_DIR`, default `~/models/quaternius`). Compose also mounts the sibling dependency volumes required by those imports and CLIs. The Materials sphere viewer only reads the committed database, so it needs no ComfyUI. Naming is a library and CLI with no preview server. Quests is a library whose build Engine imports; questline runtime runs in the browser, while NPC dialog uses the dev server and the machine's OpenAI-compatible model server at `LLM_BASE_URL`, default host port 8080.
 
 ## The city
 

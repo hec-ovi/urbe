@@ -42,8 +42,6 @@ check_json engine-pbr http://localhost:5306/materials/cyberpunk/theme.json
 check_json engine-atlas http://localhost:5306/atlas/city-urbe-tiny.json
 check_json engine-world http://localhost:5306/out/city-tiny/blueprint.json
 check_json engine-manifest http://localhost:5306/out/city-tiny/manifest.json
-check_json engine-speech-capabilities http://localhost:5306/api/speech/capabilities
-check_json engine-speech-health http://localhost:5306/api/speech/health
 
 node - "$CHECK_DIR/engine-atlas.json" "$CHECK_DIR/engine-world.json" "$CHECK_DIR/engine-manifest.json" <<'NODE'
 const fs = require('node:fs');
@@ -60,21 +58,6 @@ if (manifest.atlasVersion !== atlas.meta.version) {
   throw new Error(`engine manifest uses Atlas ${manifest.atlasVersion}, expected ${atlas.meta.version}`);
 }
 console.log(`ok  integrated   ${manifest.parcels.length} parcels at Atlas ${manifest.atlasVersion}`);
-NODE
-
-node - "$CHECK_DIR/engine-speech-capabilities.json" "$CHECK_DIR/engine-speech-health.json" <<'NODE'
-const fs = require('node:fs');
-const [capabilitiesPath, healthPath] = process.argv.slice(2);
-const capabilities = JSON.parse(fs.readFileSync(capabilitiesPath, 'utf8'));
-const health = JSON.parse(fs.readFileSync(healthPath, 'utf8'));
-const expected = { tts: 'chatterbox-nano-local', stt: 'faster-whisper-local' };
-if (health.status !== 'ready') throw new Error(`speech service is ${health.status ?? 'missing status'}`);
-for (const [kind, adapterId] of Object.entries(expected)) {
-  if (capabilities[kind]?.adapterId !== adapterId || health[kind]?.adapterId !== adapterId) {
-    throw new Error(`speech ${kind} adapter is not ${adapterId}`);
-  }
-}
-console.log(`ok  speech       ${expected.tts}, ${expected.stt}`);
 NODE
 
 docker compose exec -T quests test -s dist/index.js
