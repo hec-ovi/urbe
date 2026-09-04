@@ -35,6 +35,7 @@ x-engine-volumes: &engine-volumes
   - interior_modules:/work/interior/node_modules:ro
   - ./simulation:/work/simulation:ro
   - ./materials/themes:/work/materials/themes:ro
+  - ./materials/bindings:/work/materials/bindings:ro
   - ${URBE_MODELS_DIR:-~/models/quaternius}:/work/models:ro
 
 services:
@@ -87,6 +88,7 @@ services:
       - exterior_modules:/work/exterior/node_modules
       - ./interior/schemas:/work/interior/schemas:ro
       - ./materials/themes:/work/materials/themes:ro
+      - ./materials/bindings:/work/materials/bindings:ro
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5303/"]

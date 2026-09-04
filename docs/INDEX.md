@@ -25,5 +25,6 @@ The detailed public overview is [README.md](../README.md). This map records the 
 Materials feeds exterior, interior and engine. Naming may use simulation statistics, and falls back to Atlas statistics. Quests emits separate questline, objective, investigation, mission-asset, item-binding, fixed mechanic anchor and host capability documents for Engine.
 
 Preview wiring: `docker-compose.yml` mounts Interior schemas read-only into Exterior for its core-feasibility contract.
+Exterior and Engine also receive Materials binding manifests read-only for coordinated exterior styles.
 
 Engine nests the renderer-neutral mission-asset creator behind its own contract.
