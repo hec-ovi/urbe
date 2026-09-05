@@ -14,13 +14,13 @@ The street edge is calculated from the same geometry that creates the sidewalk, 
 
 Use the corner type declared by the street layout:
 
-- rounded corners use a continuous radius and fitted curved panels;
+- rounded corners follow a declared radius through discrete fitted panel cuts;
 - angular corners use deliberate planar cuts with a declared angle;
 - acute V-shaped cuts are unsupported and must not be generated;
 - no corner may leave a sharp V point, triangular spike, gap, overlap, or abrupt material break;
 - the curb, gutter, sidewalk panels, crossing, and road edge follow the same corner boundary.
 
-An angle cut is a complete geometric decision. It is not a rectangular panel cropped until the remaining shape looks like a V. A rounded corner is likewise derived from the actual curve, not approximated by unrelated short pieces.
+An angle cut is a complete geometric decision. It is not a rectangular panel cropped until the remaining shape looks like a V. A rounded sidewalk corner is built from discrete fitted panel cuts along a declared radius. It is never one continuous rounded sidewalk, curb, or gutter mesh.
 
 ## Panel set
 
@@ -93,6 +93,22 @@ This separation allows automation. The generator can choose a zone style without
 
 The references at 04:57:12, 04:57:35, and 04:57:42 show material and finish variation while preserving the panel, curb, and gutter relationship.
 
+## Poor-zone artifacts
+
+Poor areas can add more visible wear and small artifacts through materials. These artifacts do not change the street model.
+
+Allowed material-only variation includes:
+
+- paper and pasted scraps;
+- damaged or worn surface response;
+- dirt, stains, patches, and restrained debris marks;
+- parking-lot surface treatment and related markings;
+- different roughness, opacity, and controlled texture detail.
+
+Every artifact is fitted to an existing owned surface. It must not add geometry, change the curb height, alter the sidewalk grid, block navigation, or conceal an alignment error. The zone profile selects the artifact family and a sparse seeded placement rule, so poor streets have more wear without turning every panel into a unique hand-authored object.
+
+The 04:59:54 reference records poor-zone material artifacts. The 05:00:03 reference combines paper or damaged-street treatment with a parking-lot surface. Treat both as material layers over the shared construction set.
+
 ## Parking cuts
 
 Some streets reserve parking spaces at selected locations. Parking is a calculated cut in the sidewalk field, not a rectangle placed over the panels.
@@ -131,7 +147,92 @@ Complex or diagonal corners keep the panel module size. Do not scale a panel dow
 
 Use the established grouping rule shown in the 04:58:40, 04:58:48, and 04:58:54 references: two sidewalk panels can share one curb and one gutter group. The terminal geometry is calculated from the corner path while the panel size and group ownership remain explicit.
 
-For rounded corners, use the continuous corner path and fitted panel terminals shown in the 04:59:01 reference. The rounded case still has a defined curb and gutter relationship; it is not a collection of arbitrary wedges.
+For rounded corners, use a declared radius sampled into discrete panel cuts, with typical cuts of 50 cm and an optional 1 m cut where the profile allows it. The 04:59:01 reference shows the panelized rounded case. It still has a defined curb and gutter relationship; it is not one continuous rounded mesh or a collection of arbitrary wedges.
+
+### Declared diagonal variant
+
+A diagonal corner is allowed for selected special layouts. Its angle, panel station treatment, curb grouping, gutter grouping, and terminal cuts come from an explicit style and geometry profile. The seed may select the profile, but it may not invent an angle or a new cut pattern.
+
+The 05:00:12 reference records a clean diagonal corner. Reproduce the modeling relationship mathematically: preserve the panel size, fit the corner terminals, align the curb and gutter, and validate the result at the junction boundaries.
+
+### Panelized rounded construction
+
+Rounded sidewalk corners never use a continuous curved surface. Subdivide the declared corner path into fitted blocks, with 50 cm as the preferred rounded terminal cut and 1 m as a supported larger cut. Each block owns its boundary and uses the corresponding curb and gutter segment.
+
+The 05:00:25 reference records this panelized rounded construction. The curve is in the sequence of calculated cuts, not in a single uninterrupted mesh.
+
+### Top-view verification
+
+Use a top view to verify that a parking lot, panel field, and material artifacts preserve the grid. The top view must show:
+
+- parking cuts beginning and ending at integer panel stations;
+- panel and curb symmetry around the reserved parking span;
+- rounded corners using discrete terminals;
+- diagonal cuts using declared angles;
+- artifacts staying inside their material owners.
+
+The 05:01:14 reference is the top-view evidence for a parking lot with varied material artifacts.
+
+## Complex-corner side cross-section
+
+Complex corners require a clean side cross-section as well as a correct top view. Inspect the ordered profile from the sidewalk toward the street:
+
+sidewalk surface -> curb top -> curb face -> gutter edge -> gutter strip -> street
+
+The cross-section must have:
+
+- one owner for each geometry region;
+- no unintended overlap between sidewalk, curb, gutter, and street;
+- no hidden gap at the curb face or gutter edge;
+- correct elevations and thicknesses;
+- matching collision and navigation boundaries;
+- material artifacts only where their style intentionally overlays an existing surface.
+
+Paper, dirt, damage, and other artifacts do not count as geometry overlap. They are material-layer variation over an already valid surface. They must not produce z-fighting, change the profile, or conceal a misplaced boundary.
+
+The 05:01:24 reference is the complex-corner side cross-section check.
+
+## Straight-street top-view variety
+
+A straight street with two sidewalks may contain several optional features while preserving the panel grid:
+
+- broad sidewalk fields on both sides;
+- small curb ramps at selected five-meter station intervals;
+- arithmetic parking-lot cuts;
+- zone-specific material artifacts;
+- the same curb and gutter alignment at every unchanged station.
+
+The five-meter interval is a profile option for streets that use repeated small ramps. It is not a universal decoration rule. Select the ramp pattern from the street style and pedestrian requirements, then fit each ramp to the same sidewalk, curb, gutter, and navigation boundaries.
+
+Parking lots and ramps may occupy different station ranges. Their endpoints still land on the one-meter construction grid, and the remaining panels keep their size and symmetry. A top view must show both the regular field and the deliberate exceptions without arbitrary gaps or scaled remainder panels.
+
+The 05:01:36 reference records this straight-street variety from above.
+
+The 05:01:42 reference adds parking lots on both sides. Treat both sides as independent station ranges using the same one-meter grid and shared street profile. Their cuts may differ by seed and zone, but neither side may break the opposing sidewalk, curb, gutter, or pedestrian route.
+
+## Related street-width hierarchy
+
+Street families use related dimensions rather than unrelated arbitrary widths.
+
+Define one base normal street width as W. The profile then derives:
+
+- a single normal street from W;
+- a double normal street from exactly 2W;
+- an avenue from exactly 4W, with four carriageway lanes;
+- a small one-sided connection or alley from its declared narrower profile, retaining the same construction relationships.
+
+The width scalar must be explicit about whether it describes the carriageway or the complete corridor. Road edges, curbs, gutters, sidewalks, crossings, and navigation boundaries are derived from that choice. Do not make a double street approximately twice as wide or an avenue approximately four times as wide by visual adjustment.
+
+At a double-normal-street to avenue corner:
+
+- the junction domain receives both complete incoming envelopes;
+- the four avenue lanes remain individually accounted for;
+- the double street terminates on the calculated avenue boundary;
+- sidewalks, curbs, gutters, and crossings fit the new width without sharp V cuts;
+- lane markings and pedestrian paths use the same junction ownership;
+- no leftover triangle or overlapping surface hides the width change.
+
+The 05:01:50 reference is the dimensional junction case: a double normal street crosses an avenue with four lanes.
 
 ## Gutter and curb variants
 
@@ -226,6 +327,15 @@ The following screenshots are the exact copied files in [section_references](sec
 | [04:59:08](<section_references/Screenshot From 2026-09-05 04-59-08.png>) | Occasional curb and gutter style variation |
 | [04:59:15](<section_references/Screenshot From 2026-09-05 04-59-15.png>) | Ramp with signal treatment and fitted LED-like markings |
 | [04:59:23](<section_references/Screenshot From 2026-09-05 04-59-23.png>) | Smooth plastic-like panel-free finish retaining curb and gutter |
+| [04:59:54](<section_references/Screenshot From 2026-09-05 04-59-54.png>) | Poor-zone material artifacts without modeling changes |
+| [05:00:03](<section_references/Screenshot From 2026-09-05 05-00-03.png>) | Combined paper or damaged-street material and parking-lot treatment |
+| [05:00:12](<section_references/Screenshot From 2026-09-05 05-00-12.png>) | Mathematically declared diagonal corner |
+| [05:00:25](<section_references/Screenshot From 2026-09-05 05-00-25.png>) | Rounded corner built from discrete 50 cm or 1 m panel cuts |
+| [05:01:14](<section_references/Screenshot From 2026-09-05 05-01-14.png>) | Top view of panel grid, parking lot, and material artifacts |
+| [05:01:24](<section_references/Screenshot From 2026-09-05 05-01-24.png>) | Complex-corner side cross-section with material-only artifacts as the exception |
+| [05:01:36](<section_references/Screenshot From 2026-09-05 05-01-36.png>) | Straight street with two sidewalks, preserved panels, optional five-meter ramps, and parking lots |
+| [05:01:42](<section_references/Screenshot From 2026-09-05 05-01-42.png>) | Parking lots on both sides with the panel grid preserved |
+| [05:01:50](<section_references/Screenshot From 2026-09-05 05-01-50.png>) | Double normal street crossing a four-lane avenue at a calculated corner |
 
 The request first names a 04:64:12 image. No copied file has that name; the later 04:54:12 reference is the available matching capture and is used here.
 
@@ -236,6 +346,9 @@ Inputs are the street boundary, corner path, sidewalk profile, curb profile, gut
 The implementation must:
 
 - derive all four regions from shared boundaries;
+- keep zone material and artifact selection separate from geometry generation;
+- build rounded sidewalk corners from discrete 50 cm or 1 m panel cuts, never a continuous rounded mesh;
+- support declared diagonal corner profiles without random angles;
 - expose the chosen group length and profile values;
 - support straight, rounded, and angular corner variants;
 - reject unsupported acute V corners;
@@ -247,6 +360,8 @@ The implementation must:
 - support one-sided street profiles for alleys and connections;
 - preserve panel sizing and grouped curb spans at complex and diagonal corners;
 - support panel-free tiled finishes while retaining curb and gutter geometry;
+- validate complex-corner side cross-sections with no unintended geometry overlap;
+- support optional five-meter ramp intervals on straight streets while preserving the panel grid;
 - fit ramps over the gutter when selected;
 - produce the same result for the same seed and parameters;
 - report a named fit or clearance error instead of silently patching the result.
@@ -262,6 +377,10 @@ For each style, capture:
 5. an angular corner;
 6. an avenue with the narrow central walking strip;
 7. an overhead alignment view;
-8. a street-level curb and gutter view.
+8. a street-level curb and gutter view;
+9. a complex-corner side cross-section;
+10. a straight two-sidewalk top view with optional ramps and parking lots;
+11. a straight street with parking lots on both sides;
+12. a double normal street crossing a four-lane avenue.
 
 Every capture records seed, exported parameters, camera, renderer, and the selected profile. Reject the result if any view shows a V-shaped corner, an unaligned joint, a missing curb face, a missing gutter edge, a 20 cm height mismatch, a floating transition, or a navigation boundary different from the visible geometry.
