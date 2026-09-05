@@ -12,7 +12,7 @@ This section owns the street guide's first implementation area. Read only the su
 - [06. Highways and ramps](06-highways-and-ramps.md): complete elevated envelopes, supports, and grade connections.
 - [07. Materials and lighting](07-materials-and-lighting.md): semantic regions, mapping, fixtures, and night readability.
 - [08. Validation captures](08-validation-captures.md): reproducible tests, screenshots, and acceptance evidence.
-- [09. Panels, alignment, and transition](09-panels-alignment-and-transition.md): sidewalk modules, corresponding curb and gutter spans, corner rules, ramps, and exact references.
+- [09. Panels, alignment, and transition](09-panels-alignment-and-transition.md): sidewalk modules, zone material sets, parking cuts, one-sided streets, corresponding curb and gutter spans, corner rules, ramps, and exact references.
 - [section references](section_references/INDEX.md): exact copied screenshots supplied for this dated guide.
 
 ## Dependency edges

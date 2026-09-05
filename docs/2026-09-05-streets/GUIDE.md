@@ -198,7 +198,7 @@ Planting strips, ramps, service covers, and crossing infill are reserved regions
 
 ### 10.4 Panels, alignment, and street-to-sidewalk transition
 
-The detailed panel set is defined in [09. Panels, alignment, and transition](streets/09-panels-alignment-and-transition.md). The required construction is sidewalk panel -> curb -> gutter -> street, with aligned boundaries, an approximately 20 cm sidewalk height, broad 1 m modules, and rounded or deliberate angular corners. Acute V-shaped corners are unsupported.
+The detailed panel set is defined in [09. Panels, alignment, and transition](streets/09-panels-alignment-and-transition.md). The required construction is sidewalk panel -> curb -> gutter -> street, with aligned boundaries, an approximately 20 cm sidewalk height, broad 1 m modules, rounded or deliberate angular corners, zone-specific materials, arithmetic parking cuts, and one-sided street profiles. Acute V-shaped corners are unsupported.
 
 ## 11. Elevated routes and ramps
 

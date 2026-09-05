@@ -77,6 +77,93 @@ Use deterministic grouping to avoid a city made of one repeated visual rhythm. A
 
 Grouping changes the ownership span and mapping scale together. It must not move a curb, stretch a gutter, or create a material restart at an arbitrary point.
 
+## Zone styles and material sets
+
+Commercial, residential, corporation, and industrial zones may select different panel, curb, and gutter styles. The material set can change the surface response, color range, wear, markings, plastic or concrete finish, and local detail.
+
+The modeling contract stays the same:
+
+- the sidewalk, curb, gutter, and street remain the same ordered construction set;
+- shared boundaries, elevations, module stations, and collision follow the common arithmetic model;
+- style selection is a seeded profile, not a separate hand-built mesh;
+- a material variation cannot hide a missing curb face, gutter edge, gap, overlap, or bad cut;
+- style changes are sparse and deliberate rather than applied at every module.
+
+This separation allows automation. The generator can choose a zone style without creating a new geometry algorithm for every district. The same alignment and validation checks run for all material sets.
+
+The references at 04:57:12, 04:57:35, and 04:57:42 show material and finish variation while preserving the panel, curb, and gutter relationship.
+
+## Parking cuts
+
+Some streets reserve parking spaces at selected locations. Parking is a calculated cut in the sidewalk field, not a rectangle placed over the panels.
+
+### Parking module
+
+Use a parking module with a declared vehicle envelope and station length. A typical slot occupies approximately 3 m to 4 m along the street. The construction grid remains 1 m, so a normal four-meter slot uses four complete panel stations.
+
+For a street with 50 one-meter panel stations, a parking group may reserve an integer station range such as 30 through 40. The selected number of slots determines the exact occupied span. Two slots, three slots, and longer groups all start and end on panel stations so the remaining sidewalk panels preserve symmetry and alignment.
+
+The cut must:
+
+- begin and end on the shared sidewalk grid;
+- use the declared parking width and vehicle clearance;
+- fit its curb, gutter, road edge, and surface material to the same cut;
+- use correct angular or rounded terminal geometry;
+- preserve pedestrian routes around the reserved bay;
+- publish its station range and slot count;
+- remain deterministic for the same seed and parameters.
+
+The cut may remove one-meter sidewalk blocks, including a curved terminal block where the style requires it. Do not stretch or rotate the neighboring panels to fill a remainder. The parking surface and its signal texture are separate style roles inside the calculated opening.
+
+The 04:57:54 reference shows the parking cut and the one-meter block relationship.
+
+## Small one-sided streets
+
+Connections and alleys may have one pedestrian side only. Their street family declares the narrower width, one-sided pedestrian reservation, curb, gutter, and material style.
+
+Do not force a two-sided avenue profile into a one-sided route. The modeling sequence remains the same, but the profile owns the missing side explicitly. The street, curb, gutter, sidewalk edge, and navigation boundary must still fit without a gap or an invented narrow strip.
+
+The 04:58:15 reference shows the changed width and one-sided arrangement.
+
+## Complex and diagonal corners
+
+Complex or diagonal corners keep the panel module size. Do not scale a panel down merely because the boundary is difficult.
+
+Use the established grouping rule shown in the 04:58:40, 04:58:48, and 04:58:54 references: two sidewalk panels can share one curb and one gutter group. The terminal geometry is calculated from the corner path while the panel size and group ownership remain explicit.
+
+For rounded corners, use the continuous corner path and fitted panel terminals shown in the 04:59:01 reference. The rounded case still has a defined curb and gutter relationship; it is not a collection of arbitrary wedges.
+
+## Gutter and curb variants
+
+Add gutter and curb variants as style profiles. They may vary in surface material, edge treatment, wear, or grouping length while preserving the same construction order and alignment rules.
+
+Variant selection is not frequent noise. Select it from the zone style and a sparse seeded variation rule. A long street should read as one constructed street with occasional deliberate changes, not as a new curb recipe at every panel.
+
+The 04:59:08 reference records this type of occasional curb and gutter variation.
+
+## Ramps with signals
+
+The curb-ramp style may include richer surface treatment, directional signals, and LED-like cycling letters or markings. These are fitted contents inside the ramp's owned surface and do not replace the ramp, gutter, or curb geometry.
+
+Fit letters and signals to the ramp's actual width and direction. Keep their spacing, aspect ratio, and illumination controlled by the style profile. They must end inside the ramp region and remain readable without crossing the curb or sidewalk boundary.
+
+The 04:59:15 reference records a ramp with signals and more complex texturing.
+
+## Smooth panel-free ground styles
+
+Some zone styles use a smooth plastic-like surface between streets. This is a valid material and surface-mapping variant when selected by the zone profile. It may use a fitted tiling texture instead of visible sidewalk panel joints.
+
+The common modeling remains present:
+
+- curb and gutter still separate the sidewalk-level surface from the street;
+- the transition still has its defined height and edge;
+- the surface remains fitted to the same owned region;
+- collision, navigation, and boundaries remain unchanged;
+- the tiling scale is derived from the region dimensions;
+- the style does not introduce gaps or cover a bad alignment.
+
+This is a panel-free finish, not permission to remove the curb and gutter. The 04:59:23 reference records the smooth surface, continued curb, and continued gutter relationship.
+
 ## Curb ramps
 
 Some street sections use curb ramps. A ramp is a fitted transition over the gutter, not a replacement for the gutter geometry.
@@ -126,6 +213,19 @@ The following screenshots are the exact copied files in [section_references](sec
 | [04:54:26](<section_references/Screenshot From 2026-09-05 04-54-26.png>) | Higher view of grouped spans and their alignment |
 | [04:55:16](<section_references/Screenshot From 2026-09-05 04-55-16.png>) | Avenue arrangement with an approximately 2 m narrow central walking strip |
 | [04:56:18](<section_references/Screenshot From 2026-09-05 04-56-18.png>) | Two 1 m panels with a 2 m curb and aligned gutter |
+| [04:57:12](<section_references/Screenshot From 2026-09-05 04-57-12.png>) | Zone-dependent finish variation with the same panel, curb, and gutter modeling |
+| [04:57:35](<section_references/Screenshot From 2026-09-05 04-57-35.png>) | A second zone material set using the shared construction relationship |
+| [04:57:42](<section_references/Screenshot From 2026-09-05 04-57-42.png>) | Another material and surface variation under the common alignment model |
+| [04:57:54](<section_references/Screenshot From 2026-09-05 04-57-54.png>) | Arithmetic parking cut across one-meter sidewalk stations |
+| [04:58:08](<section_references/Screenshot From 2026-09-05 04-58-08.png>) | Corner variation for a different style profile |
+| [04:58:15](<section_references/Screenshot From 2026-09-05 04-58-15.png>) | Narrow one-sided connection or alley street |
+| [04:58:40](<section_references/Screenshot From 2026-09-05 04-58-40.png>) | Complex or diagonal corner retaining panel sizing and grouped curb |
+| [04:58:48](<section_references/Screenshot From 2026-09-05 04-58-48.png>) | Second complex corner with two-panel and one-curb alignment |
+| [04:58:54](<section_references/Screenshot From 2026-09-05 04-58-54.png>) | Third complex corner variant with the same module rule |
+| [04:59:01](<section_references/Screenshot From 2026-09-05 04-59-01.png>) | Rounded corner with fitted panel terminals |
+| [04:59:08](<section_references/Screenshot From 2026-09-05 04-59-08.png>) | Occasional curb and gutter style variation |
+| [04:59:15](<section_references/Screenshot From 2026-09-05 04-59-15.png>) | Ramp with signal treatment and fitted LED-like markings |
+| [04:59:23](<section_references/Screenshot From 2026-09-05 04-59-23.png>) | Smooth plastic-like panel-free finish retaining curb and gutter |
 
 The request first names a 04:64:12 image. No copied file has that name; the later 04:54:12 reference is the available matching capture and is used here.
 
@@ -141,6 +241,12 @@ The implementation must:
 - reject unsupported acute V corners;
 - preserve a 20 cm sidewalk height when selected by the profile;
 - keep curb and gutter spans aligned with their panel group;
+- select zone materials independently from the shared modeling algorithm;
+- support sparse seeded style variation for commercial, residential, corporation, and industrial zones;
+- fit parking cuts to integer one-meter panel stations and publish their slot count;
+- support one-sided street profiles for alleys and connections;
+- preserve panel sizing and grouped curb spans at complex and diagonal corners;
+- support panel-free tiled finishes while retaining curb and gutter geometry;
 - fit ramps over the gutter when selected;
 - produce the same result for the same seed and parameters;
 - report a named fit or clearance error instead of silently patching the result.
