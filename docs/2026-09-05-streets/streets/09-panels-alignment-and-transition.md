@@ -277,6 +277,23 @@ The curve must join the avenue with matching position, width, and direction. The
 
 The available 05:02:08 reference records the curved street, corner, avenue cut, and their intersection. The request names 05:02:09, but no copied file has that exact timestamp.
 
+The 05:02:17 reference adds another avenue-corner arrangement. It reinforces that the avenue division, signals, sidewalks, curb, gutter, and panel boundaries must meet as one aligned junction.
+
+## Exceptional curves and corners
+
+Large special-case layouts may use a curve or an unusual corner when the street plan declares it. The exception changes the path profile, not the construction discipline.
+
+For every exceptional corner:
+
+- the geometry comes from a declared radius, angle, or boundary sequence;
+- the panel size and grouping remain on the selected grid;
+- symmetry is preserved around the intended centerline or junction axis;
+- curb and gutter segments follow the same calculated cuts;
+- material artifacts may overlay surfaces only when selected by style;
+- no acute V cut, arbitrary wedge, stretched remainder, or overlapping geometry is allowed.
+
+The 05:02:36 reference shows this rule in a more unusual layout. The result can look different from an ordinary corner while still being mathematically fitted, symmetric, and panelized.
+
 ## Gutter and curb variants
 
 Add gutter and curb variants as style profiles. They may vary in surface material, edge treatment, wear, or grouping length while preserving the same construction order and alignment rules.
@@ -381,6 +398,8 @@ The following screenshots are the exact copied files in [section_references](sec
 | [05:01:50](<section_references/Screenshot From 2026-09-05 05-01-50.png>) | Double normal street crossing a four-lane avenue at a calculated corner |
 | [05:01:59](<section_references/Screenshot From 2026-09-05 05-01-59.png>) | Spacious avenue formed from four base-width units, with division, lanes, signals, and varied materials |
 | [05:02:08](<section_references/Screenshot From 2026-09-05 05-02-08.png>) | Curved street, avenue corner, and clear street cut through the avenue |
+| [05:02:17](<section_references/Screenshot From 2026-09-05 05-02-17.png>) | Avenue corner with aligned division, signals, sidewalks, curbs, gutters, and panels |
+| [05:02:36](<section_references/Screenshot From 2026-09-05 05-02-36.png>) | Exceptional curve or corner preserving symmetry, panel grid, and clean non-V cuts |
 
 The request first names a 04:64:12 image. No copied file has that name; the later 04:54:12 reference is the available matching capture and is used here.
 
@@ -410,6 +429,7 @@ The implementation must:
 - derive spacious avenues from four base-width units with a divided four-lane profile;
 - align sidewalk signals, traffic signals, signs, crossings, lanes, and avenue division from one approach frame;
 - support curved-street and avenue intersections with explicit shared ownership;
+- support declared exceptional curves and corners while preserving symmetry and grid sizes;
 - fit ramps over the gutter when selected;
 - produce the same result for the same seed and parameters;
 - report a named fit or clearance error instead of silently patching the result.
@@ -431,6 +451,8 @@ For each style, capture:
 11. a straight street with parking lots on both sides;
 12. a double normal street crossing a four-lane avenue;
 13. a spacious four-unit avenue with divided lanes and aligned signals;
-14. a curved street intersecting an avenue with a clear street cut.
+14. a curved street intersecting an avenue with a clear street cut;
+15. an avenue corner with aligned signals and panel boundaries;
+16. an exceptional curve or corner with preserved symmetry and grid sizing.
 
 Every capture records seed, exported parameters, camera, renderer, and the selected profile. Reject the result if any view shows a V-shaped corner, an unaligned joint, a missing curb face, a missing gutter edge, a 20 cm height mismatch, a floating transition, or a navigation boundary different from the visible geometry.

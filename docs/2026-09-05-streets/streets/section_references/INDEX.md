@@ -57,8 +57,8 @@ All files begin as unreviewed. Change a file's state only after the image is map
 - [Screenshot From 2026-09-05 05-01-50.png](<Screenshot From 2026-09-05 05-01-50.png>): mapped in [09. Panels, alignment, and transition](../09-panels-alignment-and-transition.md)
 - [Screenshot From 2026-09-05 05-01-59.png](<Screenshot From 2026-09-05 05-01-59.png>): mapped in [09. Panels, alignment, and transition](../09-panels-alignment-and-transition.md)
 - [Screenshot From 2026-09-05 05-02-08.png](<Screenshot From 2026-09-05 05-02-08.png>): mapped in [09. Panels, alignment, and transition](../09-panels-alignment-and-transition.md)
-- [Screenshot From 2026-09-05 05-02-17.png](<Screenshot From 2026-09-05 05-02-17.png>): unreviewed
-- [Screenshot From 2026-09-05 05-02-36.png](<Screenshot From 2026-09-05 05-02-36.png>): unreviewed
+- [Screenshot From 2026-09-05 05-02-17.png](<Screenshot From 2026-09-05 05-02-17.png>): mapped in [09. Panels, alignment, and transition](../09-panels-alignment-and-transition.md)
+- [Screenshot From 2026-09-05 05-02-36.png](<Screenshot From 2026-09-05 05-02-36.png>): mapped in [09. Panels, alignment, and transition](../09-panels-alignment-and-transition.md)
 - [Screenshot From 2026-09-05 05-02-50.png](<Screenshot From 2026-09-05 05-02-50.png>): unreviewed
 - [Screenshot From 2026-09-05 05-03-07.png](<Screenshot From 2026-09-05 05-03-07.png>): unreviewed
 - [Screenshot From 2026-09-05 05-03-15.png](<Screenshot From 2026-09-05 05-03-15.png>): unreviewed
