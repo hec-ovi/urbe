@@ -52,7 +52,9 @@ done
 ./compose/check-boxes.sh
 ```
 
-The gate executes every box's contract tests, type checks and production builds in one pass.
+The gate builds Interior's portable core-feasibility entry before running every box's contract tests, type checks and production builds. Exterior reads that same compiled entry in Node and its browser preview.
+
+For cached, offline dependency installation, use `BOX_OFFLINE_INSTALL=1 docker compose up -d`. The shared npm cache persists in a Docker volume. Offline mode disables install lifecycle scripts and fails when a required package is absent from that cache. An unchanged lockfile retains its existing installation.
 
 ### Preview services and ports
 

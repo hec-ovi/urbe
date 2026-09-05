@@ -13,6 +13,7 @@ x-box: &box
 x-user: &user
   BOX_UID: "${BOX_UID:-1000}"
   BOX_GID: "${BOX_GID:-1000}"
+  BOX_OFFLINE_INSTALL: "${BOX_OFFLINE_INSTALL:-0}"
 
 x-healthcheck: &healthcheck
   interval: 15s
@@ -20,7 +21,10 @@ x-healthcheck: &healthcheck
   retries: 20
   start_period: 180s
 
+x-install-cache: &install-cache npm_cache:/root/.npm
+
 x-engine-volumes: &engine-volumes
+  - *install-cache
   - ./compose/box-start.sh:/work/box-start.sh:ro
   - ./engine:/work/engine
   - ./quests:/work/quests:ro
@@ -48,6 +52,7 @@ services:
     ports:
       - "127.0.0.1:5301:5301"
     volumes:
+      - *install-cache
       - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./atlas:/work/atlas
       - atlas_modules:/work/atlas/node_modules
@@ -66,6 +71,7 @@ services:
     ports:
       - "127.0.0.1:5302:5302"
     volumes:
+      - *install-cache
       - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./connections:/work/connections
       - connections_modules:/work/connections/node_modules
@@ -82,11 +88,16 @@ services:
     command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5303", "--strictPort"]
     ports:
       - "127.0.0.1:5303:5303"
+    depends_on:
+      interior:
+        condition: service_healthy
     volumes:
+      - *install-cache
       - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./exterior:/work/exterior
       - exterior_modules:/work/exterior/node_modules
       - ./interior/schemas:/work/interior/schemas:ro
+      - ./interior/dist:/work/interior/dist:ro
       - ./materials/themes:/work/materials/themes:ro
       - ./materials/bindings:/work/materials/bindings:ro
     healthcheck:
@@ -98,10 +109,11 @@ services:
     working_dir: /work/interior
     environment:
       <<: *user
-    command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5304", "--strictPort"]
+    command: ["sh", "-c", "npm run build:feasibility && exec npm run preview -- --host 0.0.0.0 --port 5304 --strictPort"]
     ports:
       - "127.0.0.1:5304:5304"
     volumes:
+      - *install-cache
       - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./interior:/work/interior
       - interior_modules:/work/interior/node_modules
@@ -122,6 +134,7 @@ services:
     ports:
       - "127.0.0.1:5305:5305"
     volumes:
+      - *install-cache
       - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./simulation:/work/simulation
       - simulation_modules:/work/simulation/node_modules
@@ -138,6 +151,7 @@ services:
       <<: *user
     command: ["/work/quests-start.sh"]
     volumes:
+      - *install-cache
       - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./compose/quests-start.sh:/work/quests-start.sh:ro
       - ./quests:/work/quests
@@ -208,6 +222,7 @@ services:
     ports:
       - "127.0.0.1:5307:5307"
     volumes:
+      - *install-cache
       - ./compose/box-start.sh:/work/box-start.sh:ro
       - ./materials:/work/materials
       - materials_modules:/work/materials/node_modules
@@ -216,6 +231,7 @@ services:
       test: ["CMD", "curl", "-fsS", "http://localhost:5307/"]
 
 volumes:
+  npm_cache:
   atlas_modules:
   connections_modules:
   exterior_modules:

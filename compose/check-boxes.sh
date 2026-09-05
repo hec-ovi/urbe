@@ -22,6 +22,7 @@ build_simulation_testbed() {
   (cd "$ROOT/simulation" && node scripts/build-testbed.mjs)
 }
 
+run interior build:feasibility
 run atlas test
 run atlas build
 run connections test
