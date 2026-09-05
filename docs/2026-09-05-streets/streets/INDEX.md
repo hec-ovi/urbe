@@ -13,6 +13,7 @@ This section owns the street guide's first implementation area. Read only the su
 - [07. Materials and lighting](07-materials-and-lighting.md): semantic regions, mapping, fixtures, and night readability.
 - [08. Validation captures](08-validation-captures.md): reproducible tests, screenshots, and acceptance evidence.
 - [09. Panels, alignment, and transition](09-panels-alignment-and-transition.md): sidewalk modules, zone material sets, parking cuts, one-sided streets, width hierarchy, avenues, curved intersections, corresponding curb and gutter spans, corner rules, ramps, and exact references.
+- [Atlas street issue references](atlas-issues/INDEX.md): copied screenshot captures for Atlas street issues.
 - [section references](section_references/INDEX.md): exact copied screenshots supplied for this dated guide.
 
 ## Dependency edges
