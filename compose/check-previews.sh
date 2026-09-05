@@ -53,6 +53,8 @@ check_page materials http://localhost:5307/
 check_json exterior-pbr http://localhost:5303/materials/themes/cyberpunk/theme.json
 check_json interior-pbr http://localhost:5304/materials/themes/cyberpunk/theme.json
 check_json engine-pbr http://localhost:5306/materials/cyberpunk/theme.json
+check_json engine-street-styles http://localhost:5306/materials/bindings/street-styles.json
+check_json engine-street-markings http://localhost:5306/materials/bindings/street-markings.json
 check_json engine-atlas http://localhost:5306/atlas/city-urbe-tiny.json
 check_json engine-world http://localhost:5306/out/city-tiny/blueprint.json
 check_json engine-manifest http://localhost:5306/out/city-tiny/manifest.json

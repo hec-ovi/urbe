@@ -1,6 +1,6 @@
 # Changelog
 
-0.7: Atlas exterior requests use Engine's internal Compose address, with capability parity checked at the public preview endpoints.
+0.7: Atlas exterior requests use Engine's internal Compose address. Preview checks verify capability parity and the served street finish/marking bindings.
 
 0.7: Connections has a separate post-Exterior pass for sparse, deterministic rooftop antenna catenaries over explicit attachment and obstacle snapshots. The base Atlas-to-aperture pass stays unchanged.
 
