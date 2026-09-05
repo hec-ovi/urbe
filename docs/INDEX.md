@@ -2,6 +2,10 @@
 
 The [coordinator contract](../CONTRACT.md) owns local startup and integration checks. This map records the nine toolkit boundaries and their dependency edges.
 
+## Dated guides
+
+- [2026-09-05 streets guide](2026-09-05-streets/INDEX.md): resolver, instructions, and exact screenshot references for the street-generation quality pass.
+
 ## Boxes
 
 - atlas: deterministic city plan with streets, parcels, transit and optional hydrology. Depends on: Interior core feasibility and Exterior floor constants as mirrored compatibility contracts; no sibling runtime data.
