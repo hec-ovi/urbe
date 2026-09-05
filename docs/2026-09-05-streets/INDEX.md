@@ -11,6 +11,7 @@ Read this file first. Open only the section that matches the work in front of yo
 | Understand the target | [GUIDE.md](GUIDE.md) | Scope, rules, geometry model, implementation order, and acceptance checks |
 | Work on street construction | [streets/INDEX.md](streets/INDEX.md) | Resolver for roads, sidewalks, junctions, curves, highways, and presentation |
 | Inspect supplied screenshots | [streets/section_references/INDEX.md](streets/section_references/INDEX.md) | Exact copied source files and working reference slots |
+| Preserve the source record | [VERBATIM_USER_NOTES.md](VERBATIM_USER_NOTES.md) | Every user message from this conversation, copied in order |
 | Check the existing box boundary | [Atlas street contract](../../atlas/src/streets/construction/CONTRACT.md) | Current public contract for road profiles and pedestrian reservations |
 | Check the city boundary | [Atlas box map](../../atlas/docs/INDEX.md) | Atlas responsibilities and its internal street boxes |
 | Review broader visual context | [Existing street reference index](../../inbox/references/end-state-2026-09-02/streets/INDEX.md) | Earlier annotated references and observations |
@@ -35,4 +36,3 @@ Read this file first. Open only the section that matches the work in front of yo
 - [ ] Implementation changes linked to passing tests and captured renders.
 
 Start with [GUIDE.md](GUIDE.md), then use [streets/INDEX.md](streets/INDEX.md) to enter a focused subsection.
-

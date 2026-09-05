@@ -18,6 +18,8 @@ The target is deterministic:
 
 This guide covers the street system first. Buildings, interiors, and gameplay consume the published street boundaries.
 
+The complete source wording for this conversation is preserved in [VERBATIM_USER_NOTES.md](VERBATIM_USER_NOTES.md). Nothing in that file is normalized or shortened.
+
 ## 2. Read before changing code
 
 Use the [dated resolver](INDEX.md) to select one section. Then read:

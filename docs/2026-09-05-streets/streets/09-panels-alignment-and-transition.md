@@ -294,6 +294,61 @@ For every exceptional corner:
 
 The 05:02:36 reference shows this rule in a more unusual layout. The result can look different from an ordinary corner while still being mathematically fitted, symmetric, and panelized.
 
+## Avenue junction variants
+
+The avenue family continues through several junction forms. The 05:02:50 reference shows another spacious avenue arrangement. The 05:03:07 reference shows two streets meeting at an intersection, and the 05:03:15 reference shows the same relationship as a T connection. The 05:03:31 reference provides another perspective of the junction.
+
+These are layout variants over the same construction contract:
+
+- compute one shared junction domain;
+- preserve the avenue width, lane division, sidewalks, curbs, gutters, and crossings;
+- terminate or connect each incoming street on calculated boundaries;
+- align directional signals with the actual approach and outgoing route;
+- keep material regions fitted to road, divider, sidewalk, curb, gutter, and signal surfaces;
+- reject gaps, overlaps, V cuts, arbitrary wedges, and navigation edges that differ from the visible geometry.
+
+The T connection is not a special manual mesh. Its missing approach is an explicit graph condition, and its terminal sidewalk, curb, gutter, crossing, and signal regions are fitted from that condition.
+
+## Residential material damage profiles
+
+Residential zones use the same street, panel, curb, gutter, corner, parking, and ramp modeling. Their visual difference comes from material profiles and fitted artifacts over the existing surfaces.
+
+### Burned and saturated surfaces
+
+The 05:06:00 and 05:06:08 references show burned or darkened street areas. Apply this as texture and material wear over the existing street region. Do not cut the road mesh, change the curb height, or create a physical hole.
+
+The 05:11:16 reference shows a more saturated surface treatment. Saturation is a controlled material parameter for a selected zone style, not a new geometry family.
+
+### Paper, graffiti, mud, and oil
+
+Cheap residential or poor areas may select denser artifact profiles:
+
+- papers or pasted scraps, as shown at 05:07:25;
+- graffiti, as shown at 05:09:00, 05:09:41, 05:14:36, 05:14:43, 05:14:52, and 05:15:10;
+- oil-like stains, as shown at 05:10:29 and 05:10:40;
+- mud or dirt, as shown at 05:14:21.
+
+Use seeded placement, surface-role restrictions, and sparse density. Artifacts may cross a material region only when the style explicitly allows that overlay. They must not cross the street-to-sidewalk ownership boundary by accident.
+
+### Damaged street, curb, ramp, and sidewalk panels
+
+The 05:15:22 reference shows damaged street treatment. The 05:15:37 reference combines damaged curb and ramp appearance with damaged sidewalk-panel materials. The 05:15:46 reference adds another damaged texture example.
+
+Damage remains material-only. The underlying panel grid, curb span, gutter edge, ramp boundary, collision, and navigation stay mathematically valid. A damaged appearance may darken, stain, crack, desaturate, or add missing-looking surface detail, but it must not introduce a real gap or an unowned geometric edge.
+
+### Pixel-perfect material fitting
+
+Every residential artifact is mapped to the actual owned surface:
+
+- use world dimensions or construction distance for texture scale;
+- preserve the one-meter panel grid where panel joints are part of the selected style;
+- fit artifacts to curved, angular, diagonal, parking, and ramp boundaries;
+- stop or continue an artifact only according to its declared material region;
+- avoid stretched textures, arbitrary crops, visible texture restarts, and z-fighting;
+- compare the intended night view with neutral diagnostic lighting.
+
+The visual damage can be irregular. Its mapping and boundaries cannot be arbitrary.
+
 ## Gutter and curb variants
 
 Add gutter and curb variants as style profiles. They may vary in surface material, edge treatment, wear, or grouping length while preserving the same construction order and alignment rules.
@@ -400,6 +455,26 @@ The following screenshots are the exact copied files in [section_references](sec
 | [05:02:08](<section_references/Screenshot From 2026-09-05 05-02-08.png>) | Curved street, avenue corner, and clear street cut through the avenue |
 | [05:02:17](<section_references/Screenshot From 2026-09-05 05-02-17.png>) | Avenue corner with aligned division, signals, sidewalks, curbs, gutters, and panels |
 | [05:02:36](<section_references/Screenshot From 2026-09-05 05-02-36.png>) | Exceptional curve or corner preserving symmetry, panel grid, and clean non-V cuts |
+| [05:02:50](<section_references/Screenshot From 2026-09-05 05-02-50.png>) | Additional spacious avenue arrangement |
+| [05:03:07](<section_references/Screenshot From 2026-09-05 05-03-07.png>) | Two streets meeting at a calculated intersection |
+| [05:03:15](<section_references/Screenshot From 2026-09-05 05-03-15.png>) | T connection with fitted street, sidewalk, curb, and gutter boundaries |
+| [05:03:31](<section_references/Screenshot From 2026-09-05 05-03-31.png>) | Alternate perspective of the avenue and street junction |
+| [05:06:00](<section_references/Screenshot From 2026-09-05 05-06-00.png>) | Burned or darkened residential street material |
+| [05:06:08](<section_references/Screenshot From 2026-09-05 05-06-08.png>) | Additional burned residential street material variation |
+| [05:07:25](<section_references/Screenshot From 2026-09-05 05-07-25.png>) | Paper or pasted artifacts on poor residential surfaces |
+| [05:09:00](<section_references/Screenshot From 2026-09-05 05-09-00.png>) | Poor residential graffiti material |
+| [05:09:41](<section_references/Screenshot From 2026-09-05 05-09-41.png>) | Additional graffiti variation over the same street modeling |
+| [05:10:29](<section_references/Screenshot From 2026-09-05 05-10-29.png>) | Oil-like residential street material artifact |
+| [05:10:40](<section_references/Screenshot From 2026-09-05 05-10-40.png>) | Additional oil-like surface treatment |
+| [05:11:16](<section_references/Screenshot From 2026-09-05 05-11-16.png>) | Saturated residential material variation |
+| [05:14:21](<section_references/Screenshot From 2026-09-05 05-14-21.png>) | Mud or dirt artifact over the street material |
+| [05:14:36](<section_references/Screenshot From 2026-09-05 05-14-36.png>) | Graffiti artifact over the residential street |
+| [05:14:43](<section_references/Screenshot From 2026-09-05 05-14-43.png>) | Additional graffiti material variation |
+| [05:14:52](<section_references/Screenshot From 2026-09-05 05-14-52.png>) | Additional graffiti material variation |
+| [05:15:10](<section_references/Screenshot From 2026-09-05 05-15-10.png>) | Additional graffiti material variation |
+| [05:15:22](<section_references/Screenshot From 2026-09-05 05-15-22.png>) | Damaged street surface material |
+| [05:15:37](<section_references/Screenshot From 2026-09-05 05-15-37.png>) | Damaged curb, ramp, and sidewalk-panel materials |
+| [05:15:46](<section_references/Screenshot From 2026-09-05 05-15-46.png>) | Additional damaged street texture |
 
 The request first names a 04:64:12 image. No copied file has that name; the later 04:54:12 reference is the available matching capture and is used here.
 
