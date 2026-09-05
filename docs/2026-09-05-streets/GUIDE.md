@@ -196,6 +196,10 @@ Panel origins, joint widths, and terminal cuts derive from the sidewalk boundary
 
 Planting strips, ramps, service covers, and crossing infill are reserved regions. They cannot consume the clear pedestrian route or leave a triangular hole at a corner. Derive their borders from the sidewalk field and preserve the curb step.
 
+### 10.4 Panels, alignment, and street-to-sidewalk transition
+
+The detailed panel set is defined in [09. Panels, alignment, and transition](streets/09-panels-alignment-and-transition.md). The required construction is sidewalk panel -> curb -> gutter -> street, with aligned boundaries, an approximately 20 cm sidewalk height, broad 1 m modules, and rounded or deliberate angular corners. Acute V-shaped corners are unsupported.
+
 ## 11. Elevated routes and ramps
 
 ### 11.1 Highway envelope
@@ -302,4 +306,3 @@ Select these values from project profiles and generated output, not screenshot g
 - minimum pedestrian and vehicle clearances.
 
 Until these are selected, the guide defines the construction method and acceptance criteria, not a final numeric style sheet.
-
