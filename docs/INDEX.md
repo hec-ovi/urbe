@@ -29,6 +29,7 @@ The [coordinator contract](../CONTRACT.md) owns local startup and integration ch
 Materials feeds exterior, interior and engine. Naming may use simulation statistics, and falls back to Atlas statistics. Quests emits separate questline, objective, investigation, mission-asset, item-binding, fixed mechanic anchor and host capability documents for Engine.
 
 Preview wiring: Interior builds its portable feasibility entry before serving. `docker-compose.yml` mounts that build and its schemas read-only into Exterior.
+Atlas's exterior job proxy uses Engine's Compose service address; viewer links use its loopback preview address.
 Exterior and Engine also receive Materials binding manifests read-only for coordinated exterior styles.
 
 Engine nests the renderer-neutral mission-asset creator behind its own contract.

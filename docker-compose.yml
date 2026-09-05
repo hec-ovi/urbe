@@ -48,6 +48,7 @@ services:
     working_dir: /work/atlas
     environment:
       <<: *user
+      ATLAS_ENGINE_API_URL: http://engine:5306
     command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5301", "--strictPort"]
     ports:
       - "127.0.0.1:5301:5301"
@@ -187,6 +188,7 @@ services:
     environment:
       <<: *user
       URBE_MODELS_DIR: /work/models
+      __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: engine
       LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8080/v1}
       LLM_MODEL: ${LLM_MODEL:-}
     extra_hosts:

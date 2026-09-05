@@ -27,6 +27,20 @@ check_json() {
 cd "$ROOT"
 docker compose ps --status running >/dev/null
 
+check_json atlas-exteriors http://localhost:5301/api/exteriors
+check_json engine-exteriors http://localhost:5306/api/exteriors
+node - "$CHECK_DIR/atlas-exteriors.json" "$CHECK_DIR/engine-exteriors.json" <<'NODE'
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const [proxy, direct] = process.argv.slice(2).map(path => JSON.parse(fs.readFileSync(path, 'utf8')));
+assert.deepEqual(Object.keys(proxy).sort(), ['available', 'contractVersion', 'reason']);
+assert.equal(proxy.contractVersion, '1.0');
+assert.equal(typeof proxy.available, 'boolean');
+assert.ok(proxy.reason === null || typeof proxy.reason === 'string');
+assert.deepEqual(proxy, direct, 'Atlas exterior capability must match Engine');
+console.log('ok  exterior-api Atlas proxy matches Engine capability');
+NODE
+
 check_page atlas http://localhost:5301/
 check_page connections http://localhost:5302/
 check_page exterior http://localhost:5303/

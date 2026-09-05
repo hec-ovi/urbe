@@ -13,6 +13,7 @@ Purpose: starts the nine sibling toolkits and verifies their local integration.
 
 - Local preview services on ports 5301 through 5307, sibling data mounted read-only, generated worlds in Engine's ignored output directory. The shared npm cache is a persistent Docker volume.
 - Interior builds its portable feasibility entry before its preview starts. Exterior waits for that preview and reads the same compiled entry as native Node.
+- Atlas proxies exterior capability and job requests to Engine through the Compose service address. Engine permits that hostname explicitly; browser viewer links use the public loopback address. Engine can be unavailable without preventing Atlas inspection.
 - `compose/check-boxes.sh` builds shared prerequisites, then runs every box's tests and builds. `compose/check-previews.sh` verifies served pages, material data and the assembled sample world.
 
 ## Errors and invariants

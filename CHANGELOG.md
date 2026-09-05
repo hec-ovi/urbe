@@ -1,5 +1,7 @@
 # Changelog
 
+0.7: Atlas exterior requests use Engine's internal Compose address, with capability parity checked at the public preview endpoints.
+
 0.7: Connections has a separate post-Exterior pass for sparse, deterministic rooftop antenna catenaries over explicit attachment and obstacle snapshots. The base Atlas-to-aperture pass stays unchanged.
 
 0.6: Compose runs the current browser and generation boxes without optional model services. The host gate needs Node.js and npm.
