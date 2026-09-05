@@ -125,3 +125,17 @@ did ytou trimmed my text? i need to all i said be present int hose guides i did 
 ~~~text
 put streets atlas issues folder, copy all the screenshots
 ~~~
+
+## User message 13
+
+~~~text
+issue son streets, there is an issue like repeated side cross on streets shown at 05 59 53, that means, a street that joins an avenue has artifacts OVER the avenue, it should cur there perfectly instead.,m and alignments sometimes are incorrect i see. another one is at 06 00 08 also at 06 00 22 as you can see a street joins another double carril street but has 2 side walks. and looks weird, same on the end, see the side walk on the end of that picture is like OVER the other street, should be in a space perfect mathematic previous the corner,m in some cases there is overlap, for example 53 01 and this case has a sharp V (we said that should be forbidden, we wanted a perfet cut with 1mt etc i provided many examples reference at streets) another preview of the V cut at 06 00 49.
+
+it seems there is an issue with crossings and other V artifacts on hte modeling, how this is created needs more pixel perfection (remember the grid, a place can not be a V somewhere there and a weird street that goes to a side and goes back to the avenue, that have no sense shown at 065 01 06) it also happens again better shown overlap of the side cross on streets when a street interjects another or an avenue, like at 06 01 10.
+
+This one is a mess, has it all, like triple cross sides incorrect and trinagle and incorrect size (not pixel perfect) at 06 01 18.
+
+the highway ramp need review, it is a mess, check at 06 01 30.
+
+copy all images and the raw in a section streets issues atlas with date and time
+~~~
