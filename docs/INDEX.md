@@ -30,6 +30,7 @@ Materials feeds exterior, interior and engine. Naming may use simulation statist
 
 Preview wiring: Interior builds its portable feasibility entry before serving. `docker-compose.yml` mounts that build and its schemas read-only into Exterior.
 Atlas's exterior job proxy uses Engine's Compose service address; viewer links use its loopback preview address.
+Atlas hosts blueprint jobs in a server worker and keeps its city catalog in the writable checkout's ignored `.atlas-cities` folder; browser refresh and container restart preserve saved cities.
 Exterior and Engine also receive Materials binding manifests read-only for coordinated exterior styles.
 
 Engine nests the renderer-neutral mission-asset creator behind its own contract.

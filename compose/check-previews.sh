@@ -29,6 +29,19 @@ docker compose ps --status running >/dev/null
 
 check_json atlas-exteriors http://localhost:5301/api/exteriors
 check_json engine-exteriors http://localhost:5306/api/exteriors
+check_json atlas-cities http://localhost:5301/api/cities
+node - "$CHECK_DIR/atlas-cities.json" <<'NODE'
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const { cities } = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+assert.ok(Array.isArray(cities), 'Atlas must return its saved-city list');
+for (const city of cities) {
+  assert.equal(city.stage, 'blueprint');
+  assert.ok(['queued', 'running', 'ready', 'failed'].includes(city.status));
+  if (city.status === 'ready') assert.equal(city.blueprintUrl, `/api/cities/${city.id}/blueprint`);
+}
+console.log(`ok  city-api     ${cities.length} saved city records`);
+NODE
 node - "$CHECK_DIR/atlas-exteriors.json" "$CHECK_DIR/engine-exteriors.json" <<'NODE'
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
