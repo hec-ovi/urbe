@@ -103,3 +103,5 @@ Data flows `atlas -> connections/base -> buildingforge -> interiorforge -> assem
 ## Working on a box
 
 Start with this box map, then read the `CONTRACT.md` of the box you need. A contract is enough to use a box: purpose, inputs, outputs, closed error set, invariants, dependencies. Every box runs standalone against its own fixtures, so no box waits on another to be testable.
+
+Every agent finishes a job with a fresh playable city. Coordinate one rebuild at a time: clear all generated Engine worlds, drafts and saved games, clear the Atlas city catalog, then generate one city with the latest requested size, districts and interior count. Preserve source code, models, materials, reference images and story authoring. Verify the final manifest, every required interior and the served files, then share the exact new game URL. A failed generation remains unfinished. Generic sample links are not review links.

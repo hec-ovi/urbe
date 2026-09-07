@@ -34,3 +34,5 @@ Engine nests the renderer-neutral mission-asset creator behind its own contract.
 Engine front door: choose Small, Medium or Big, then Next. Completed cities support free play immediately, with interiors and quests optional. Saved games resume their last confirmed player state.
 
 `compose/check-launcher.mjs` verifies template creation, complete served shells, free play and save/resume through Engine's launcher contract.
+
+Agent completion follows the [fresh-city rebuild rule](../README.md#working-on-a-box): serialized cleanup, one generated city with current requested settings, validated interiors and an exact game URL.
