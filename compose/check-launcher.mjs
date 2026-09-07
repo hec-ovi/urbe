@@ -46,7 +46,8 @@ for ( const id of manifest.parcels ) {
 
 	await document( `${path}/${id}/${id}.blueprint.json` );
 	const response = await fetch( `${base}${path}/${id}/${id}.glb`, { method: 'HEAD' } );
-	assert.ok( response.ok && ! response.headers.get( 'content-type' )?.includes( 'text/html' ), `missing shell ${id}` );
+	assert.ok( response.ok && Number( response.headers.get( 'content-length' ) ) > 0
+		&& ! response.headers.get( 'content-type' )?.includes( 'text/html' ), `missing shell ${id}` );
 
 }
 console.log( `ok game ${game.id}: complete exteriors, no interiors or quests` );
