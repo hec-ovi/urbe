@@ -16,6 +16,7 @@ Purpose: starts the nine sibling toolkits and verifies their local integration.
 - Atlas proxies exterior capability and job requests to Engine through the Compose service address. Engine permits that hostname explicitly; browser viewer links use the public loopback address. Engine can be unavailable without preventing Atlas inspection.
 - Atlas hosts its blueprint-generation API on its preview port. City worker startup follows Atlas's package contract; the ignored `.atlas-cities` catalog persists through the writable checkout mount. Exterior and interior stages remain explicit.
 - `compose/check-boxes.sh` builds shared prerequisites, then runs every box's tests and builds. `compose/check-previews.sh` verifies served pages, material data, street bindings, exterior API parity and the assembled sample world.
+- `node compose/check-launcher.mjs [small|medium|large] [baseUrl]` creates a fresh template city and free-play game, checks served shell files, then saves and resumes through the launcher API. Defaults: small and `http://localhost:5306`. Generated check cities and games remain in Engine's ignored catalog.
 
 ## Errors and invariants
 
