@@ -30,3 +30,5 @@ Atlas hosts blueprint jobs in a server worker and keeps its city catalog in the 
 Exterior and Engine also receive Materials binding manifests read-only for coordinated exterior styles.
 
 Engine nests the renderer-neutral mission-asset creator behind its own contract.
+
+Engine front door: choose Small, Medium or Big, then Next. Completed cities support free play immediately, with interiors and quests optional. Saved games resume their last confirmed player state.

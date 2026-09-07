@@ -1,5 +1,7 @@
 # Changelog
 
+0.7: Engine launcher uses size templates with optional interiors and quests, direct free play and revisioned saves.
+
 0.7: Atlas exterior requests use Engine's internal Compose address. Its server-worker city catalog persists in the writable checkout. Preview checks verify saved-city responses, capability parity and served street finish/marking bindings.
 
 0.7: Connections has a separate post-Exterior pass for sparse, deterministic rooftop antenna catenaries over explicit attachment and obstacle snapshots. The base Atlas-to-aperture pass stays unchanged.

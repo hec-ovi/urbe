@@ -69,7 +69,7 @@ For cached, offline dependency installation, use `BOX_OFFLINE_INSTALL=1 docker c
 | 5306 | [Engine city](http://localhost:5306/?mode=city&out=/out/city-tiny) | Assembled city overview and parcel inspection | same Engine service |
 | 5307 | [Materials](http://localhost:5307/) | Material catalog and PBR sphere preview | `cd materials && npm run preview` |
 
-The Engine game link is the assembled sample runtime. Catalog games can also carry a named blueprint and validated quest bundle. The other pages isolate one layer so geometry, data and materials can be inspected before assembly. Port 5306 defaults to WebGPU; add `&backend=webgl` to an Engine URL for its WebGL fallback.
+The [Engine launcher](http://localhost:5306/) creates cities from Small, Medium or Big templates. Next builds streets and exteriors; Play without quests opens a saved free-play game. Interiors and story are optional. The Engine game link is the assembled sample runtime. Catalog games can also carry a named blueprint and validated quest bundle. The other pages isolate one layer so geometry, data and materials can be inspected before assembly. Port 5306 defaults to WebGPU; add `&backend=webgl` to an Engine URL for its WebGL fallback.
 
 Quests runs inside Compose without a public port because it watches and rebuilds the library consumed by Engine. Naming is a CLI/library and has no preview server.
 
