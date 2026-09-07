@@ -31,6 +31,8 @@ Exterior and Engine also receive Materials binding manifests read-only for coord
 
 Engine nests the renderer-neutral mission-asset creator behind its own contract.
 
+Engine serves stable play sessions through Compose and native `npm run play`; restart applies completed code changes. Startup preserves catalogs. `compose/check-catalog.mjs` verifies their published assets.
+
 Engine front door: choose Small, Medium or Big, then Next. Completed cities support free play immediately, with interiors and quests optional. Saved games resume their last confirmed player state.
 
 `compose/check-launcher.mjs` verifies template creation, complete served shells, free play and save/resume through Engine's launcher contract.

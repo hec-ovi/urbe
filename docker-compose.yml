@@ -161,25 +161,10 @@ services:
       <<: *healthcheck
       test: ["CMD", "test", "-f", "/tmp/urbe-quests-ready"]
 
-  engine-world:
-    <<: *box
-    working_dir: /work/engine
-    environment:
-      <<: *user
-    command: ["npm", "run", "assemble-city", "--", "--blueprint", "/work/atlas/samples/city-urbe-tiny.json", "--out", "/work/engine/out/city-tiny", "--interiors", "5"]
-    depends_on:
-      atlas:
-        condition: service_healthy
-      exterior:
-        condition: service_healthy
-      interior:
-        condition: service_healthy
-    volumes: *engine-volumes
-
   engine:
     <<: *box
     working_dir: /work/engine
-    # Dev mode imports the sibling boxes in place: atlas samples, connections, exterior and
+    # Play mode imports the sibling boxes in place: atlas samples, connections, exterior and
     # interior source with their installed dependencies, the quests and simulation builds,
     # and the materials theme database served under /materials/. The CC0 character,
     # animation and vehicle packs come from the machine's model store (URBE_MODELS_DIR on
@@ -193,14 +178,12 @@ services:
       LLM_MODEL: ${LLM_MODEL:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5306", "--strictPort"]
+    command: ["npm", "run", "play", "--", "--host", "0.0.0.0", "--port", "5306", "--strictPort"]
     ports:
       - "127.0.0.1:5306:5306"
     depends_on:
       atlas:
         condition: service_healthy
-      engine-world:
-        condition: service_completed_successfully
       exterior:
         condition: service_healthy
       interior:

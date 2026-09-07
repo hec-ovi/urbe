@@ -39,9 +39,9 @@ docker compose up -d --build
 
 `docker compose ps` shows startup and health. `docker compose logs -f <service>` follows one service, and `docker compose down` stops the stack. Preview ports bind only to localhost. Each preview runs in a stock node:22 container with its box bind-mounted. `compose/box-start.sh` checks the lock hash whenever a service container starts and installs dependencies when it changed. After changing a lockfile, run `docker compose up -d --force-recreate <service>`. `docker compose down -v` also deletes those install volumes.
 
-The one-shot `engine-world` service assembles `engine/out/city-tiny` from the committed Atlas sample before Engine starts. Generated world files remain ignored by Engine's repository and are rebuilt by a fresh stack.
+Engine starts at its launcher and retains the saved city and game catalogs. Create a world through a size template. Its play service keeps source watching off; `docker compose restart engine` applies completed code changes.
 
-Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine world, and the Quests build.
+Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine catalog and its served worlds, and the Quests build.
 
 The host gate requires Node.js 22 and npm. Compose dependency volumes do not populate host `node_modules`.
 
@@ -65,11 +65,10 @@ For cached, offline dependency installation, use `BOX_OFFLINE_INSTALL=1 docker c
 | 5303 | [Exterior](http://localhost:5303/) | Generated building shells, facade grids, openings, roofs, and exterior geometry | `cd exterior && npm run preview` |
 | 5304 | [Interior](http://localhost:5304/) | Rooms, doors, stairs, lifts, furniture, lights, anchors, and interior navigation | `cd interior && npm run preview` |
 | 5305 | [Simulation](http://localhost:5305/testbed/) | Population, homes, jobs, routines, schedules, and movement testbed | `cd simulation && npm run testbed` |
-| 5306 | [Engine game](http://localhost:5306/?mode=game) | Playable sample city using Atlas, Connections, buildings, interiors, Materials and Simulation | `cd engine && npm run dev` |
-| 5306 | [Engine city](http://localhost:5306/?mode=city&out=/out/city-tiny) | Assembled city overview and parcel inspection | same Engine service |
+| 5306 | [Engine launcher](http://localhost:5306/) | City templates, saved games and first-person play | `cd engine && npm run play` |
 | 5307 | [Materials](http://localhost:5307/) | Material catalog and PBR sphere preview | `cd materials && npm run preview` |
 
-The [Engine launcher](http://localhost:5306/) creates cities from Small, Medium or Big templates. Next builds streets and exteriors; Play without quests opens a saved free-play game. Interiors and story are optional. The Engine game link is the assembled sample runtime. Catalog games can also carry a named blueprint and validated quest bundle. The other pages isolate one layer so geometry, data and materials can be inspected before assembly. Port 5306 defaults to WebGPU; add `&backend=webgl` to an Engine URL for its WebGL fallback.
+The [Engine launcher](http://localhost:5306/) creates cities from Small, Medium or Big templates. Next builds streets and exteriors; Play without quests opens a saved free-play game. Interiors and story are optional. Catalog games can also carry a named blueprint and validated quest bundle. The other pages isolate one layer so geometry, data and materials can be inspected before assembly. Port 5306 defaults to WebGPU; add `&backend=webgl` to an Engine URL for its WebGL fallback.
 
 Quests runs inside Compose without a public port because it watches and rebuilds the library consumed by Engine. Naming is a CLI/library and has no preview server.
 
