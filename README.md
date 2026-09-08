@@ -4,6 +4,12 @@ A deterministic city sandbox. The same inputs reproduce the street plan, buildin
 
 The project is nine boxes, each an independent repository coupled only by its `CONTRACT.md`. The complete box map and dependency edges are in [docs/INDEX.md](docs/INDEX.md); the high-level data flow is below.
 
+## Pending metropolis test
+
+Work is paused. Docker is running; the city and game catalogs are empty. The 10 km by 10 km metropolis, 20 clustered interiors, nearby 80-floor towers, 500 NPCs and 500 cars are not ready to play.
+
+Pending: finish Ground render pages and Game integration, regenerate the corrected city, validate movement networks, assemble shells and interiors, publish one game, then measure actual population counts and GPU performance. Unfinished local changes are preserved. Resume from the local checkpoint at `docs/metropolis/INDEX.md` before starting generation. Visual redesign and story integration remain parked.
+
 ## The world, layer by layer
 
 1. **Plan.** A seed and a few parameters produce a city blueprint: districts with wealth tiers, a tensor field street hierarchy with real widths and sidewalks, typed parcels with 3D envelopes, bus, subway and train networks, and optional lagoons, rivers or sea coasts.

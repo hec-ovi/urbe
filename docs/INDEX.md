@@ -2,6 +2,8 @@
 
 The [coordinator contract](../CONTRACT.md) owns local startup and integration checks. This map records the nine toolkit boundaries and their dependency edges.
 
+Current integration work is paused; see [pending metropolis test](../README.md#pending-metropolis-test). The local resume resolver is `docs/metropolis/INDEX.md`.
+
 ## Boxes
 
 - atlas: deterministic city plan with streets, parcels, transit and optional hydrology. Depends on: Interior core feasibility and Exterior floor constants as mirrored compatibility contracts; no sibling runtime data.
