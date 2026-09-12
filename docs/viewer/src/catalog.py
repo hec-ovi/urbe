@@ -115,17 +115,3 @@ class Catalog:
         canonical = self.aliases.get(key, key)
         record = dict(self.documents[canonical], id=key)
         return dict(record, **self.reader.parse(key, self.files.documents[key], render=True))
-
-    def search(self, query='', topic='', kind='documents'):
-        if kind not in {'documents', 'images'}:
-            raise ValueError('kind must be documents or images')
-        terms = query.casefold().split()
-        records = self.snapshot()['images'] if kind == 'images' else self.documents.values()
-        result = []
-        for record in records:
-            if topic and topic not in record['topics']:
-                continue
-            text = record['id'] + ' ' + record['title'] + ' ' + ' '.join(record.get('aliases', [])) + ' ' + self.files.documents.get(record['id'], '')
-            if all(term in text.casefold() for term in terms):
-                result.append({key: record[key] for key in ('id', 'title', 'topics', 'sources') if key in record})
-        return result

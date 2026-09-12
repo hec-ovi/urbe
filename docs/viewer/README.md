@@ -1,33 +1,32 @@
 # Documentation viewer
 
-Version: 1.0.0.
+Version: 1.1.0.
 
-Local reader for topic guides, contracts, source documents and screenshot references.
+Open `docs/viewer/index.html` directly in a browser. Navigation, search, document sections and screenshot links work from disk.
 
-## Open
+Dark mode is the default. The header switches between light and dark and remembers the choice where browser storage is available.
+
+The HTML contains the documentation snapshot, styles and application. Images and original-source links use relative paths, so keep the file inside this checkout.
+
+## Refresh after editing Markdown
 
 From the coordinator root:
 
 ```sh
 python3 -m pip install -r docs/viewer/requirements.txt
-python3 docs/viewer/serve.py
+npm ci --prefix docs/viewer
+python3 docs/viewer/build.py
 ```
 
-Open http://127.0.0.1:5310. Restart after source edits to rebuild the catalog. No game services are started.
+Dependencies are needed only to rebuild. Opening the generated HTML requires a browser.
 
-The local topic configuration overrides `defaults/catalog.json`. Without local content, the reader opens the repository README and discovers its documents.
+## Sources
 
-## Read without the viewer
-
-[INDEX.md](INDEX.md) resolves the product guides. [START.md](START.md) describes a bounded fresh session. `python3 docs/viewer/build.py` regenerates local source, reference and repository indexes.
-
-## Files
-
-- `content/catalog.json`: topics, source mappings and repository boundaries.
-- `topics/`: consolidated requirements, with original source links.
-- `src/`: discovery, references, rendering, catalog and HTTP host.
+- `content/catalog.json`: private topics and repository boundaries; overrides the generic defaults.
+- `topics/`, `INDEX.md`, `START.md`: local guides and fresh-session resolver.
+- `src/`: discovery, references, rendering and static export.
 - `web/views/`, `web/components/`, `web/ui/`: schema-driven presentation.
-- `web/controller.js`: navigation and data requests.
-- `generated/`: private catalogs and reference indexes.
+- `web/data.js`: snapshot lookup and search; `web/controller.js`: navigation.
+- `generated/`: private catalogs, reference indexes and the bundled script.
 
-The reader is local. Content, screenshots and generated indexes stay ignored. Only the reusable viewer code and its contract belong in the public repository.
+Raw content, screenshots and the generated HTML remain ignored. Reusable code and its contract are committed.

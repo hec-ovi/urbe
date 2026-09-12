@@ -1,0 +1,12 @@
+{
+  "name": "urbe-documentation-viewer",
+  "version": "1.1.0",
+  "private": true,
+  "scripts": {
+    "bundle": "esbuild web/controller.js --bundle --format=iife --target=es2020 --outfile=generated/reader.js"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  },
+  "type": "module"
+}

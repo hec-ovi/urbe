@@ -1,6 +1,6 @@
 # Coordinator box map
 
-- [Local documentation viewer](viewer/INDEX.md): topic guides, repository boundaries, source documents and screenshot references. Read [its contract](viewer/CONTRACT.md); inputs: [configuration](viewer/schemas/config.schema.json), outputs: [catalog](viewer/schemas/catalog.schema.json). Depends on local Markdown and referenced files only.
+- [Local documentation viewer](viewer/INDEX.md): static HTML topic guides, repository boundaries, source documents and screenshot references. Read [its contract](viewer/CONTRACT.md); inputs: [configuration](viewer/schemas/config.schema.json), outputs: [snapshot](viewer/schemas/snapshot.schema.json). Depends on local Markdown and referenced files only.
 
 The [coordinator contract](../CONTRACT.md) owns local startup and integration checks. This map records the ten toolkit boundaries and their dependency edges.
 

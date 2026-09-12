@@ -44,9 +44,3 @@ class SourceFiles:
         key = path.relative_to(self.root).as_posix()
         self.allowed[key] = path
         return key
-
-    def get(self, key):
-        path = self.allowed.get(key)
-        if path and path.is_file() and path.resolve().is_relative_to(self.root):
-            return path
-        return None

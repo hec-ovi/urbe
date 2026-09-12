@@ -14,7 +14,9 @@ export function link(label, href, className = '') {
 }
 
 export function route(values) { return '#' + new URLSearchParams(values).toString(); }
-export function fileLink(id) { return '/file?' + new URLSearchParams({id}).toString(); }
+let fileLinks = {};
+export function configureFileLinks(links) { fileLinks = links; }
+export function fileLink(id) { return fileLinks[id] || route({missing: id}); }
 
 export function button(label, action) {
   const node = element('button', {type: 'button'}, [label]);

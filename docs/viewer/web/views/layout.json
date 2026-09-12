@@ -1,11 +1,51 @@
 {
   "widgets": [
-    {"type":"header","id":"header"},
-    {"type":"navigation","id":"navigation"},
-    {"type":"collection","id":"collection"},
-    {"type":"document","id":"document"}
+    {
+      "type": "header",
+      "id": "header"
+    },
+    {
+      "type": "navigation",
+      "id": "navigation"
+    },
+    {
+      "type": "collection",
+      "id": "collection"
+    },
+    {
+      "type": "document",
+      "id": "document"
+    }
   ],
   "labels": {
-    "brand":"URBE", "title":"Documentation", "search":"Search documents or screenshot names", "submit":"Search", "topics":"Topics", "repositories":"Repositories", "documents":"Source files", "images":"Screenshots", "instructions":"Instructions", "fresh":"Fresh session", "isolation":"Isolation map", "sections":"On this page", "references":"References", "related":"Source documents", "original":"Open original", "empty":"No matching entries.", "more":"Show more", "loading":"Loading document…", "missing":"Reference unavailable", "repository":"Repository", "dependencies":"Depends on", "revision":"Checked-out revision", "dirty":"Changed files", "aliases":"Identical source paths", "close":"Back to topics", "status":"Documented claims require their own verification.", "referenceIndex":"Full reference index"
+    "brand": "URBE",
+    "title": "Documentation",
+    "search": "Search documents or screenshot names",
+    "submit": "Search",
+    "topics": "Topics",
+    "repositories": "Repositories",
+    "documents": "Source files",
+    "images": "Screenshots",
+    "instructions": "Instructions",
+    "fresh": "Fresh session",
+    "isolation": "Isolation map",
+    "sections": "On this page",
+    "references": "References",
+    "related": "Source documents",
+    "original": "Open original",
+    "empty": "No matching entries.",
+    "more": "Show more",
+    "loading": "Loading document\u2026",
+    "missing": "Reference unavailable",
+    "repository": "Repository",
+    "dependencies": "Depends on",
+    "revision": "Checked-out revision",
+    "dirty": "Changed files",
+    "aliases": "Identical source paths",
+    "close": "Back to topics",
+    "status": "Documented claims require their own verification.",
+    "referenceIndex": "Full reference index",
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode"
   }
 }

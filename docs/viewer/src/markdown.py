@@ -1,6 +1,6 @@
 """Safe Markdown rendering and stable document section links."""
 import re
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from markdown_it import MarkdownIt
 
 
@@ -9,9 +9,10 @@ def slug(text):
 
 
 class MarkdownReader:
-    def __init__(self, resolver):
+    def __init__(self, resolver, file_url=None):
         self.resolver = resolver
         self.parser = MarkdownIt('js-default')
+        self.file_url = file_url or (lambda key: '../../' + quote(key, safe='/'))
 
     @staticmethod
     def _reference_label(children, index):
@@ -53,7 +54,7 @@ class MarkdownReader:
                 references.append(ref)
                 if ref['status'] == 'available':
                     params = {'doc': ref['id'], 'anchor': ref.get('anchor', '')}
-                    url = '/#' + urlencode(params) if ref['kind'] == 'document' else '/file?' + urlencode({'id': ref['id']})
+                    url = '#' + urlencode(params) if ref['kind'] == 'document' else self.file_url(ref['id'])
                     child.attrSet(attr, url)
                     if child.type == 'image':
                         child.attrSet('loading', 'lazy')
@@ -62,7 +63,7 @@ class MarkdownReader:
                     child.content = '[' + ref['label'] + ': ' + ref['status'] + ']'
                     child.children = None
                 elif ref['status'] != 'external':
-                    child.attrSet('href', '/#' + urlencode({'missing': target}))
+                    child.attrSet('href', '#' + urlencode({'missing': target}))
                 else:
                     child.attrSet('rel', 'noreferrer noopener')
                     child.attrSet('target', '_blank')

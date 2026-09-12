@@ -1,38 +1,40 @@
 # CONTRACT: documentation viewer
 
-Purpose: reads local project documentation and presents topic guides, repository contracts and screenshot references.
+Purpose: presents local product guides, repository contracts and screenshot references in one static HTML reader.
 
-Version: 1.0.0.
+Version: 1.1.0.
 
 ## In
 
-- `python3 docs/viewer/serve.py [--root PATH] [--port PORT]`: root defaults to this checkout; port defaults to 5310; binds only 127.0.0.1.
-- [Configuration schema](schemas/config.schema.json): topic titles, source matching and repository boundaries in `content/catalog.json`.
-- [Presentation schema](schemas/view.schema.json): widget types and labels in `web/views/layout.json`.
-- Local Markdown, referenced schema files and images. Excludes dependency, build, Git and generated-output trees. Source files remain unchanged.
+- `python3 docs/viewer/build.py [--root PATH]`: root defaults to this checkout.
+- [Configuration](schemas/config.schema.json): topics and repositories in `content/catalog.json`, with generic defaults when absent.
+- [Presentation](schemas/view.schema.json): widget types and labels in `web/views/layout.json`.
+- Local Markdown, referenced schemas and images. Dependencies, build outputs, environment files and symlinks outside the checkout are excluded.
 
 ## Out
 
-- `/`: JSON-driven reader with topic navigation, repository list, full-text search, document sections and image links.
-- `GET /api/catalog`: [catalog schema](schemas/catalog.schema.json).
-- `GET /api/document?id=PATH`: safe rendered Markdown, source path, headings and references.
-- `GET /api/search?q=TEXT&topic=ID&kind=documents|images`: matching catalog records.
-- `GET /file?id=PATH`: indexed documents, referenced schemas and image files only.
-- `python3 docs/viewer/build.py`: local Markdown source index, reference index, repository index and catalog under `generated/`.
-- Identical Markdown is indexed once with every original path retained as an alias. Missing and ambiguous image references stay visible.
+- `docs/viewer/index.html`: opens directly from disk. Its embedded [snapshot](schemas/snapshot.schema.json) holds the [catalog](schemas/catalog.schema.json), layout, rendered documents, search text and relative file links.
+- Topics, repositories, full-text search, document sections and image references work locally. Styles and JavaScript are embedded. Navigation and search make no requests.
+- Images and original-source links use relative paths, including spaces and non-ASCII names. Keep the HTML inside its checkout.
+- Rebuilding refreshes the snapshot and the Markdown source, reference and repository indexes under `generated/`.
+- Identical Markdown is grouped with every original path retained. Missing and ambiguous image references stay visible. Source documents are unchanged.
 
-## Errors
+## Errors and invariants
 
-- Invalid configuration or missing required topic guides fails startup with a useful message.
-- Unknown document/file returns 404; unsupported API route returns 404; malformed query returns 400.
-- Requests with a non-loopback Host return 403. Traversal and symlink escapes are not served. Raw Markdown HTML cannot execute.
+- Invalid configuration, missing required guides or failed bundling fails the build with a useful message.
+- Unknown documents and unresolved references display a reader error. Searches can return an empty list.
+- Raw Markdown HTML cannot execute or terminate the embedded snapshot script.
+- Exported content remains local and ignored.
 
 ## Presentation
 
-Views iterate the JSON layout. Components receive view models and action hooks; the controller owns routing and requests. Supported widgets: header, navigation, collection, document. Square corners throughout.
+Views iterate the JSON layout. Components receive view models and action hooks. The controller owns routing; the data adapter queries the snapshot. Widgets: header, navigation, collection, document. Square corners throughout.
+
+Dark theme is the default. A light/dark switch remembers its device-local selection when browser storage is available. Reading works when storage is unavailable.
 
 ## Dependencies and verification
 
-- Local repository contracts are read as documents, with no runtime dependency on any game box.
-- `markdown-it-py` renders Markdown with raw HTML disabled. See [parser security](https://markdown-it-py.readthedocs.io/en/latest/security.html).
-- `python3 -m unittest discover -s docs/viewer/tests` checks the real HTTP surface, source preservation, reference resolution and generated indexes.
+- Repository contracts are source documents; the reader imports no game code.
+- markdown-it-py renders with raw HTML disabled: [security](https://markdown-it-py.readthedocs.io/en/latest/security.html).
+- esbuild bundles modules at build time, pinned in package-lock.json: [format](https://esbuild.github.io/api/#format).
+- `python3 -m unittest discover -s docs/viewer/tests` runs the real build, validates exported HTML and exercises the embedded-data reader in Node. Browser visual inspection is separate.
