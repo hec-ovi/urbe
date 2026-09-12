@@ -1,0 +1,1 @@
+{"topics":[{"id":"product","title":"Project documentation","summary":"Root documentation and linked contracts.","guide":"README.md","match":[],"sources":["README.md","CONTRACT.md"]}],"repositories":[{"id":"coordinator","purpose":"Project repository","depends":[],"isolation":"Read the project contract before changing code.","contract":"CONTRACT.md"}]}
