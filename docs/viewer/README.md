@@ -1,16 +1,18 @@
-# Documentation viewer
+# Stage reader
 
-Version: 1.1.1.
+Version: 2.0.0.
 
-Open `docs/viewer/index.html` directly in a browser. Navigation, search, document sections and screenshot links work from disk.
+One Markdown document per project stage (Atlas, Streets, Exterior...), read in a static dark HTML page. Open `docs/viewer/index.html` directly in a browser; no server needed.
 
-Dark mode is the default. The header switches between light and dark and remembers the choice where browser storage is available.
+## Add a stage
 
-The HTML contains the documentation snapshot, styles and application. Images and original-source links use relative paths, so keep the file inside this checkout.
+Put the Markdown file under `docs/viewer/stages/` and add an entry to `docs/viewer/stages.json`:
 
-Image references support PNG, JPEG, WebP, GIF, AVIF and SVG.
+```json
+{"id": "streets", "title": "Streets", "file": "docs/viewer/stages/streets.md"}
+```
 
-## Refresh after editing Markdown
+## Rebuild after editing
 
 From the coordinator root:
 
@@ -20,15 +22,12 @@ npm ci --prefix docs/viewer
 python3 docs/viewer/build.py
 ```
 
-Dependencies are needed only to rebuild. Opening the generated HTML requires a browser.
+Reload the open tab afterwards. Dependencies are needed only to rebuild.
 
-## Sources
+## Layout
 
-- `content/catalog.json`: private topics and repository boundaries; overrides the generic defaults.
-- `topics/`, `INDEX.md`, `START.md`: local guides and fresh-session resolver.
-- `src/`: discovery, references, rendering and static export.
+- `build.py`, `src/`: reads the stage list, renders each document, writes the HTML.
 - `web/views/`, `web/components/`, `web/ui/`: schema-driven presentation.
-- `web/data.js`: snapshot lookup and search; `web/controller.js`: navigation.
-- `generated/`: private catalogs, reference indexes and the bundled script.
+- `web/data.js`: stage lookup; `web/controller.js`: routing and theme.
 
-Raw content, screenshots and the generated HTML remain ignored. Reusable code and its contract are committed.
+Stage documents and the generated HTML stay local and ignored. The reader code and its contract are committed.

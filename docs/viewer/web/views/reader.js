@@ -1,9 +1,8 @@
 import {header} from '../components/header.js';
 import {navigation} from '../components/navigation.js';
-import {collection} from '../components/collection.js';
 import {documentPanel} from '../components/document.js';
 
-const widgets={header,navigation,collection,document:documentPanel};
+const widgets={header,navigation,document:documentPanel};
 
 export class ReaderView {
   constructor(root,layout){this.root=root;this.layout=layout;}

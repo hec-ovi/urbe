@@ -1,41 +1,35 @@
-# CONTRACT: documentation viewer
+# CONTRACT: stage reader
 
-Purpose: presents local product guides, repository contracts and screenshot references in one static HTML reader.
+Purpose: shows one Markdown document per project stage in a static HTML reader.
 
-Version: 1.1.1.
+Version: 2.0.0.
 
 ## In
 
 - `python3 docs/viewer/build.py [--root PATH]`: root defaults to this checkout.
-- [Configuration](schemas/config.schema.json): topics and repositories in `content/catalog.json`, with generic defaults when absent.
-- [Presentation](schemas/view.schema.json): widget types and labels in `web/views/layout.json`.
-- Local Markdown, referenced schemas and images. Dependencies, build outputs, environment files and symlinks outside the checkout are excluded.
+- [Stage list](schemas/config.schema.json): `docs/viewer/stages.json`, ordered `{id, title, file}` entries. `file` is a Markdown path inside the root.
+- [Presentation](schemas/view.schema.json): widgets and labels in `web/views/layout.json`.
 
 ## Out
 
-- `docs/viewer/index.html`: opens directly from disk. Its embedded [snapshot](schemas/snapshot.schema.json) holds the [catalog](schemas/catalog.schema.json), layout, rendered documents, search text and relative file links.
-- Topics, repositories, full-text search, document sections and image references work locally. Styles and JavaScript are embedded. Navigation and search make no requests.
-- Images and original-source links use relative paths, including spaces and non-ASCII names. Keep the HTML inside its checkout.
-- Image discovery and links support PNG, JPEG, WebP, GIF, AVIF and SVG references.
-- Rebuilding refreshes the snapshot and the Markdown source, reference and repository indexes under `generated/`.
-- Identical Markdown is grouped with every original path retained. Missing and ambiguous image references stay visible. Source documents are unchanged.
+- `docs/viewer/index.html`: opens directly from disk. Its embedded [snapshot](schemas/snapshot.schema.json) holds the layout and, per stage, the rendered HTML and its headings.
+- The sidebar lists stages in stage-list order. Each opens its document with an "On this page" list of its sections. Routes: `#stage=<id>&anchor=<section>`.
+- Links: a link to another stage file opens that stage, `#section` links stay inside the stage, other local files and images use paths relative to the HTML, external links open a new tab. A missing image shows as `[alt: missing]`; a missing link is struck through.
+- Dark theme by default. The switch remembers its choice where browser storage is available.
 
 ## Errors and invariants
 
-- Invalid configuration, missing required guides or failed bundling fails the build with a useful message.
-- Unknown documents and unresolved references display a reader error. Searches can return an empty list.
-- Raw Markdown HTML cannot execute or terminate the embedded snapshot script.
-- Exported content remains local and ignored.
+- The build exits with `Build failed: <reason>` for a missing or malformed stage list, a duplicate id, a missing stage file or a file outside the root. No HTML is written then.
+- An unknown `#stage=` shows `Stage not found`.
+- Raw HTML in Markdown is escaped; it cannot run or close the embedded data script.
+- Stage files are read only.
 
 ## Presentation
 
-Views iterate the JSON layout. Components receive view models and action hooks. The controller owns routing; the data adapter queries the snapshot. Widgets: header, navigation, collection, document. Square corners throughout.
-
-Dark theme is the default. A light/dark switch remembers its device-local selection when browser storage is available. Reading works when storage is unavailable.
+The view iterates the JSON layout. Widgets: header (brand, title, theme switch), navigation (stage list), document (article and section list). Square corners throughout.
 
 ## Dependencies and verification
 
-- Repository contracts are source documents; the reader imports no game code.
 - markdown-it-py renders with raw HTML disabled: [security](https://markdown-it-py.readthedocs.io/en/latest/security.html).
-- esbuild bundles modules at build time, pinned in package-lock.json: [format](https://esbuild.github.io/api/#format).
-- `python3 -m unittest discover -s docs/viewer/tests` runs the real build, validates exported HTML and exercises the embedded-data reader in Node. Browser visual inspection is separate.
+- esbuild bundles the modules at build time, pinned in package-lock.json.
+- `python3 -m unittest discover -s docs/viewer/tests` builds a fixture checkout, checks the exported HTML and runs the embedded-data reader in Node.

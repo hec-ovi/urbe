@@ -1,77 +1,65 @@
-"""Safe Markdown rendering and stable document section links."""
+"""Render one stage document with section anchors and reader-relative links."""
+import os
 import re
-from urllib.parse import quote, urlencode
+from pathlib import Path
+from urllib.parse import quote, unquote, urlencode, urlsplit
 from markdown_it import MarkdownIt
+
+EXTERNAL = {'http', 'https', 'mailto'}
 
 
 def slug(text):
-    return re.sub(r'[^\w\- ]', '', text.casefold()).replace(' ', '-')
+    return re.sub(r'[^\w\- ]', '', text.casefold()).strip().replace(' ', '-') or 'section'
 
 
 class MarkdownReader:
-    def __init__(self, resolver, file_url=None):
-        self.resolver = resolver
+    def __init__(self, root, output_dir, stage_routes):
+        self.root = root
+        self.output_dir = output_dir
+        self.stage_routes = stage_routes
         self.parser = MarkdownIt('js-default')
-        self.file_url = file_url or (lambda key: '../../' + quote(key, safe='/'))
 
-    @staticmethod
-    def _reference_label(children, index):
-        child = children[index]
-        if child.type == 'image':
-            return child.content
-        parts = []
-        depth = 1
-        for token in children[index + 1:]:
-            if token.type == 'link_open':
-                depth += 1
-            elif token.type == 'link_close':
-                depth -= 1
-                if depth == 0:
-                    break
-            parts.append('\n' if token.type in {'softbreak', 'hardbreak'} else token.content)
-        return ''.join(parts)
-
-    def parse(self, source, text, render=False):
-        tokens = self.parser.parse(text)
-        headings, references, seen = [], [], {}
+    def render(self, stage_id, path):
+        tokens = self.parser.parse(path.read_text(encoding='utf-8'))
+        headings, seen = [], {}
         for index, token in enumerate(tokens):
             if token.type == 'heading_open':
-                label = tokens[index + 1].content
-                base = slug(label)
+                title = tokens[index + 1].content
+                base = slug(title)
                 count = seen.get(base, 0)
                 seen[base] = count + 1
                 anchor = base + (f'-{count}' if count else '')
                 token.attrSet('id', 'section-' + anchor)
-                headings.append({'title': label, 'anchor': anchor, 'level': int(token.tag[1]), 'line': token.map[0] + 1})
-            children = token.children or []
-            for child_index, child in enumerate(children):
-                attr = 'src' if child.type == 'image' else 'href' if child.type == 'link_open' else None
-                if not attr:
-                    continue
-                target = child.attrGet(attr) or ''
-                label = self._reference_label(children, child_index)
-                ref = self.resolver.resolve(source, target, label)
-                references.append(ref)
-                if ref['status'] == 'available':
-                    params = {'doc': ref['id'], 'anchor': ref.get('anchor', '')}
-                    url = '#' + urlencode(params) if ref['kind'] == 'document' else self.file_url(ref['id'])
-                    child.attrSet(attr, url)
-                    if child.type == 'image':
-                        child.attrSet('loading', 'lazy')
-                elif child.type == 'image':
-                    child.type, child.tag = 'text', ''
-                    child.content = '[' + ref['label'] + ': ' + ref['status'] + ']'
-                    child.children = None
-                elif ref['status'] != 'external':
-                    child.attrSet('href', '#' + urlencode({'missing': target}))
-                else:
-                    child.attrSet('rel', 'noreferrer noopener')
-                    child.attrSet('target', '_blank')
-        references.extend(self.resolver.named_images(source, text))
-        unique = {}
-        for ref in references:
-            unique.setdefault((ref.get('id') or ref['original'], ref['status']), ref)
-        result = {'headings': headings, 'references': list(unique.values())}
-        if render:
-            result['html'] = self.parser.renderer.render(tokens, self.parser.options, {})
-        return result
+                headings.append({'title': title, 'anchor': anchor, 'level': int(token.tag[1])})
+            for child in token.children or []:
+                if child.type in ('image', 'link_open'):
+                    self.rewrite(stage_id, path, child)
+        return {'html': self.parser.renderer.render(tokens, self.parser.options, {}), 'headings': headings}
+
+    def rewrite(self, stage_id, path, token):
+        attr = 'src' if token.type == 'image' else 'href'
+        target = unquote(token.attrGet(attr) or '').strip()
+        url = urlsplit(target)
+        if url.scheme in EXTERNAL:
+            if token.type == 'link_open':
+                token.attrSet('target', '_blank')
+                token.attrSet('rel', 'noopener noreferrer')
+            return
+        anchor = slug(url.fragment) if url.fragment else ''
+        if not url.path:
+            token.attrSet(attr, self.route(stage_id, anchor))
+            return
+        file = (path.parent / url.path).resolve()
+        if token.type == 'link_open' and file in self.stage_routes:
+            token.attrSet(attr, self.route(self.stage_routes[file], anchor))
+        elif url.scheme == '' and file.is_relative_to(self.root) and file.is_file():
+            token.attrSet(attr, quote(os.path.relpath(file, self.output_dir).replace(os.sep, '/'), safe='/'))
+        elif token.type == 'image':
+            token.type, token.tag, token.children = 'text', '', None
+            token.content = f'[{token.content or target}: missing]'
+        else:
+            token.attrs = {'class': 'missing', 'title': f'Missing: {target}'}
+
+    @staticmethod
+    def route(stage_id, anchor):
+        return '#' + urlencode({'stage': stage_id, **({'anchor': anchor} if anchor else {})})
