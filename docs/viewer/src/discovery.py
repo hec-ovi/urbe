@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-IMAGE_TYPES = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif'}
+IMAGE_TYPES = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif', '.svg'}
 SKIP = {'.git', 'node_modules', '.venv', 'venv', '__pycache__', 'dist', 'build',
         'vendor', 'out', 'outputs', 'generated', '.atlas-cities', 'themes',
         'models', 'comfy', 'artifacts', 'corrected', 'tall', 'final', 'archive'}

@@ -2,7 +2,7 @@
 
 Purpose: presents local product guides, repository contracts and screenshot references in one static HTML reader.
 
-Version: 1.1.0.
+Version: 1.1.1.
 
 ## In
 
@@ -16,6 +16,7 @@ Version: 1.1.0.
 - `docs/viewer/index.html`: opens directly from disk. Its embedded [snapshot](schemas/snapshot.schema.json) holds the [catalog](schemas/catalog.schema.json), layout, rendered documents, search text and relative file links.
 - Topics, repositories, full-text search, document sections and image references work locally. Styles and JavaScript are embedded. Navigation and search make no requests.
 - Images and original-source links use relative paths, including spaces and non-ASCII names. Keep the HTML inside its checkout.
+- Image discovery and links support PNG, JPEG, WebP, GIF, AVIF and SVG references.
 - Rebuilding refreshes the snapshot and the Markdown source, reference and repository indexes under `generated/`.
 - Identical Markdown is grouped with every original path retained. Missing and ambiguous image references stay visible. Source documents are unchanged.
 

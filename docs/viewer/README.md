@@ -1,12 +1,14 @@
 # Documentation viewer
 
-Version: 1.1.0.
+Version: 1.1.1.
 
 Open `docs/viewer/index.html` directly in a browser. Navigation, search, document sections and screenshot links work from disk.
 
 Dark mode is the default. The header switches between light and dark and remembers the choice where browser storage is available.
 
 The HTML contains the documentation snapshot, styles and application. Images and original-source links use relative paths, so keep the file inside this checkout.
+
+Image references support PNG, JPEG, WebP, GIF, AVIF and SVG.
 
 ## Refresh after editing Markdown
 
