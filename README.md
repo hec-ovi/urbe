@@ -27,6 +27,7 @@ Clone each box into the coordinator root. These directories are independent Git 
 
 ```sh
 git clone git@github.com:hec-ovi/urbe-atlas.git atlas
+git clone git@github.com:hec-ovi/urbe-streets.git streets
 git clone git@github.com:hec-ovi/urbe-transit.git connections
 git clone git@github.com:hec-ovi/buildingforge.git exterior
 git clone git@github.com:hec-ovi/interiorforge.git interior
@@ -87,6 +88,7 @@ The layers that only make sense as a city.
 | Repository | Box | What it does |
 | --- | --- | --- |
 | [urbe-atlas](https://github.com/hec-ovi/urbe-atlas) | atlas | Seed to 2D city blueprint: districts, streets, sidewalks, typed parcels, transit, hydrology |
+| [urbe-streets](https://github.com/hec-ovi/urbe-streets) | streets | Street construction from the Atlas plan: sidewalks, curbs, gutters, crossings and street hardware as streamable GLB pieces |
 | [urbe-transit](https://github.com/hec-ovi/urbe-transit) | connections | Inter-building links with exact apertures, walk graph, lanes, signals, timetables, air corridors |
 | [urbe-population](https://github.com/hec-ovi/urbe-population) | simulation | Statistical NPC population with lazy deterministic instantiation |
 | [urbe-namer](https://github.com/hec-ovi/urbe-namer) | naming | LLM naming pass and themed NPC type set |
