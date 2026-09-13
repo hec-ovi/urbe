@@ -15,6 +15,10 @@ ATLAS = '''# Atlas
 
 See [streets lanes](streets.md#lanes), [this section](#lanes), [site](https://example.com) and [gone](gone.md).
 
+See [sibling source](<../../../sibling sources/notes.md>).
+
+![Sibling reference](<../../../sibling sources/reference image.png>)
+
 ![Plan](<images/a plan.png>)
 
 ![Absent](images/absent.png)
@@ -66,7 +70,11 @@ class StageReaderContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()
-        cls.root = Path(cls.temp.name)
+        cls.root = Path(cls.temp.name) / 'checkout'
+        sibling = Path(cls.temp.name) / 'sibling sources'
+        sibling.mkdir()
+        (sibling / 'notes.md').write_text('# Source notes\n')
+        (sibling / 'reference image.png').write_bytes(b'PNG fixture')
         stages = [{'id': 'atlas', 'title': 'Atlas', 'file': 'docs/stages/atlas.md'},
                   {'id': 'streets', 'title': 'Streets', 'file': 'docs/stages/streets.md'}]
         checkout(cls.root, stages, {'docs/stages/atlas.md': ATLAS, 'docs/stages/streets.md': '# Streets\n\n## Lanes\n',
@@ -102,13 +110,20 @@ class StageReaderContractTest(unittest.TestCase):
         external = next(a for a in self.atlas.links if a.get('href') == 'https://example.com')
         self.assertEqual(external['target'], '_blank')
         self.assertIn({'class': 'missing', 'title': 'Missing: gone.md'}, self.atlas.links)
+        sibling = next(href for href in hrefs if href and href.endswith('notes.md'))
+        self.assertEqual((self.output.parent / unquote(sibling)).resolve(),
+                         Path(self.temp.name) / 'sibling sources/notes.md')
 
     def test_images_use_relative_paths_and_missing_ones_show_as_text(self):
-        self.assertEqual(len(self.atlas.images), 1)
-        url = urlsplit(self.atlas.images[0]['src'])
+        self.assertEqual(len(self.atlas.images), 2)
+        local = next(image for image in self.atlas.images if image['alt'] == 'Plan')
+        url = urlsplit(local['src'])
         self.assertEqual((url.scheme, url.netloc), ('', ''))
         self.assertEqual((self.output.parent / unquote(url.path)).resolve(), self.root / 'docs/stages/images/a plan.png')
         self.assertIn('[Absent: missing]', self.snapshot['stages'][0]['html'])
+        sibling = next(image for image in self.atlas.images if image['alt'] == 'Sibling reference')
+        self.assertEqual((self.output.parent / unquote(sibling['src'])).resolve(),
+                         Path(self.temp.name) / 'sibling sources/reference image.png')
 
     def test_sources_stay_unchanged(self):
         for path, before in self.before.items():

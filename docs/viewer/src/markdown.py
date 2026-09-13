@@ -13,8 +13,7 @@ def slug(text):
 
 
 class MarkdownReader:
-    def __init__(self, root, output_dir, stage_routes):
-        self.root = root
+    def __init__(self, output_dir, stage_routes):
         self.output_dir = output_dir
         self.stage_routes = stage_routes
         self.parser = MarkdownIt('js-default')
@@ -52,7 +51,7 @@ class MarkdownReader:
         file = (path.parent / url.path).resolve()
         if token.type == 'link_open' and file in self.stage_routes:
             token.attrSet(attr, self.route(self.stage_routes[file], anchor))
-        elif url.scheme == '' and file.is_relative_to(self.root) and file.is_file():
+        elif url.scheme in ('', 'file') and url.netloc in ('', 'localhost') and file.is_file():
             token.attrSet(attr, quote(os.path.relpath(file, self.output_dir).replace(os.sep, '/'), safe='/'))
         elif token.type == 'image':
             token.type, token.tag, token.children = 'text', '', None

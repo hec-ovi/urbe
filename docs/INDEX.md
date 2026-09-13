@@ -2,6 +2,8 @@
 
 - [Stage reader](viewer/CONTRACT.md): static dark HTML page with one Markdown document per project stage. Inputs: [stage list](viewer/schemas/config.schema.json), outputs: [snapshot](viewer/schemas/snapshot.schema.json). Depends on the stage Markdown files only.
 
+The reader accepts stage documents anywhere inside this checkout. Source and image references may link to sibling projects and original local reference folders.
+
 The [coordinator contract](../CONTRACT.md) owns local startup and integration checks. This map records the ten toolkit boundaries and their dependency edges.
 
 Current integration work is paused; see [pending metropolis test](../README.md#pending-metropolis-test). The local resume resolver is `docs/metropolis/INDEX.md`.

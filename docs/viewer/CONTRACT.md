@@ -2,7 +2,7 @@
 
 Purpose: shows one Markdown document per project stage in a static HTML reader.
 
-Version: 2.0.0.
+Version: 2.0.1.
 
 ## In
 
@@ -14,7 +14,7 @@ Version: 2.0.0.
 
 - `docs/viewer/index.html`: opens directly from disk. Its embedded [snapshot](schemas/snapshot.schema.json) holds the layout and, per stage, the rendered HTML and its headings.
 - The sidebar lists stages in stage-list order. Each opens its document with an "On this page" list of its sections. Routes: `#stage=<id>&anchor=<section>`.
-- Links: a link to another stage file opens that stage, `#section` links stay inside the stage, other local files and images use paths relative to the HTML, external links open a new tab. A missing image shows as `[alt: missing]`; a missing link is struck through.
+- Links: a link to another stage file opens that stage, `#section` links stay inside the stage, other local files and images use paths relative to the HTML, including sources in sibling checkouts and original reference folders. Local `file:` links use the same handling. External web links open a new tab. A missing image shows as `[alt: missing]`; a missing link is struck through.
 - Dark theme by default. The switch remembers its choice where browser storage is available.
 
 ## Errors and invariants

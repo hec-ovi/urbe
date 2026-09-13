@@ -13,7 +13,7 @@ class Stages:
             raise ValueError(f'Missing stage list: {config_path}')
         self.entries = self.validate(json.loads(Path(config_path).read_text()))
         routes = {self.path(entry): entry['id'] for entry in self.entries}
-        self.reader = MarkdownReader(self.root, Path(output_dir).resolve(), routes)
+        self.reader = MarkdownReader(Path(output_dir).resolve(), routes)
 
     def path(self, entry):
         return (self.root / entry['file']).resolve()
