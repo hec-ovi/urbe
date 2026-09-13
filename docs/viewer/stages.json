@@ -2,7 +2,8 @@
   "stages": [
     {"id": "overview", "title": "Overview", "file": "docs/viewer/stages/overview.md"},
     {"id": "atlas", "title": "Atlas", "file": "docs/viewer/stages/atlas.md"},
-    {"id": "streets", "title": "Streets and Connections", "file": "2026-09-13/streets.md"},
+    {"id": "streets", "title": "Streets", "file": "2026-09-13/streets.md"},
+    {"id": "links", "title": "Links", "file": "2026-09-13/links.md"},
     {"id": "exteriors", "title": "Exteriors", "file": "2026-09-13/exteriors.md"},
     {"id": "interiors", "title": "Interiors", "file": "2026-09-13/interiors.md"},
     {"id": "quests", "title": "Quests and Naming", "file": "2026-09-13/quests.md"},
