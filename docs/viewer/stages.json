@@ -1,5 +1,6 @@
 {
   "stages": [
+    {"id": "overview", "title": "Overview", "file": "docs/viewer/stages/overview.md"},
     {"id": "atlas", "title": "Atlas", "file": "docs/viewer/stages/atlas.md"}
   ]
 }
