@@ -1,6 +1,15 @@
 {
   "stages": [
     {"id": "overview", "title": "Overview", "file": "docs/viewer/stages/overview.md"},
-    {"id": "atlas", "title": "Atlas", "file": "docs/viewer/stages/atlas.md"}
+    {"id": "atlas", "title": "Atlas", "file": "docs/viewer/stages/atlas.md"},
+    {"id": "streets", "title": "Streets and Connections", "file": "2026-09-13/streets.md"},
+    {"id": "exteriors", "title": "Exteriors", "file": "2026-09-13/exteriors.md"},
+    {"id": "interiors", "title": "Interiors", "file": "2026-09-13/interiors.md"},
+    {"id": "quests", "title": "Quests and Naming", "file": "2026-09-13/quests.md"},
+    {"id": "materials", "title": "Materials", "file": "2026-09-13/materials.md"},
+    {"id": "simulation", "title": "Simulation", "file": "2026-09-13/simulation.md"},
+    {"id": "gameplay", "title": "Gameplay", "file": "2026-09-13/gameplay.md"},
+    {"id": "coordinator", "title": "Coordinator", "file": "2026-09-13/coordinator.md"},
+    {"id": "modeling", "title": "Modeling", "file": "2026-09-13/modeling.md"}
   ]
 }
