@@ -1,6 +1,6 @@
 # Stage reader
 
-Version: 2.0.1.
+Version: 2.1.0.
 
 One Markdown document per project stage (Atlas, Streets, Exterior...), read in a static dark HTML page. Open `docs/viewer/index.html` directly in a browser; no server needed.
 
@@ -10,6 +10,15 @@ Put the Markdown file anywhere inside the coordinator checkout and add its root-
 
 ```json
 {"id": "streets", "title": "Streets", "file": "docs/viewer/stages/streets.md"}
+```
+
+## Images with captions
+
+Put the caption on the line right under the image, in the same paragraph. The page shows a preview; a click opens the image full size with that caption.
+
+```md
+![Short title](images/streets/example.png)
+**Expected reference.** What it shows and why it matters.
 ```
 
 ## Rebuild after editing
