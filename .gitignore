@@ -15,6 +15,7 @@ session
 /docs/*
 !/docs/INDEX.md
 inbox/
+sketchs/
 .research/
 
 # Local preview and reference captures.
