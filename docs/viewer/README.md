@@ -1,6 +1,6 @@
 # Stage reader
 
-Version: 2.1.0.
+Version: 2.2.0.
 
 One Markdown document per project stage (Atlas, Streets, Exterior...), read in a static dark HTML page. Open `docs/viewer/index.html` directly in a browser; no server needed.
 
@@ -10,6 +10,18 @@ Put the Markdown file anywhere inside the coordinator checkout and add its root-
 
 ```json
 {"id": "streets", "title": "Streets", "file": "docs/viewer/stages/streets.md"}
+```
+
+## Another reader
+
+Any stage list builds its own page, written next to the list as `index.html`. `labels` renames the page, using the keys in `web/views/layout.json`:
+
+```json
+{"labels": {"page": "Urbe notes", "title": "Notes", "stages": "Notes"}, "stages": [{"id": "a", "title": "A", "file": "notes/a.md"}]}
+```
+
+```sh
+python3 docs/viewer/build.py --stages notes/stages.json
 ```
 
 ## Images with captions

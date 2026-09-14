@@ -54,16 +54,14 @@ class PageParser(HTMLParser):
             self.active['text'] += data
 
 
-def checkout(root, stages, files):
-    for path, text in files.items():
+def checkout(root, config, files, config_path='docs/viewer/stages.json'):
+    for path, text in {**files, config_path: json.dumps(config)}.items():
         (root / path).parent.mkdir(parents=True, exist_ok=True)
         (root / path).write_bytes(text) if isinstance(text, bytes) else (root / path).write_text(text)
-    (root / 'docs/viewer').mkdir(parents=True, exist_ok=True)
-    (root / 'docs/viewer/stages.json').write_text(json.dumps({'stages': stages}))
 
 
-def build(root):
-    return subprocess.run([sys.executable, str(SOURCE / 'build.py'), '--root', str(root)], capture_output=True, text=True)
+def build(root, *options):
+    return subprocess.run([sys.executable, str(SOURCE / 'build.py'), '--root', str(root), *options], capture_output=True, text=True)
 
 
 class StageReaderContractTest(unittest.TestCase):
@@ -77,7 +75,7 @@ class StageReaderContractTest(unittest.TestCase):
         (sibling / 'reference image.png').write_bytes(b'PNG fixture')
         stages = [{'id': 'atlas', 'title': 'Atlas', 'file': 'docs/stages/atlas.md'},
                   {'id': 'streets', 'title': 'Streets', 'file': 'docs/stages/streets.md'}]
-        checkout(cls.root, stages, {'docs/stages/atlas.md': ATLAS, 'docs/stages/streets.md': '# Streets\n\n## Lanes\n',
+        checkout(cls.root, {'stages': stages}, {'docs/stages/atlas.md': ATLAS, 'docs/stages/streets.md': '# Streets\n\n## Lanes\n',
                                     'docs/stages/images/a plan.png': b'PNG fixture'})
         cls.before = {p: p.read_bytes() for p in cls.root.rglob('*') if p.is_file()}
         result = build(cls.root)
@@ -133,14 +131,30 @@ class StageReaderContractTest(unittest.TestCase):
         result = subprocess.run(['node', str(SOURCE / 'tests/check-snapshot.mjs')], input=json.dumps(self.snapshot), text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_another_stage_list_builds_its_own_page_with_its_labels(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / 'checkout'
+            config = {'labels': {'page': 'Urbe notes', 'stages': 'Notes'}, 'stages': [{'id': 'a', 'title': 'A', 'file': 'notes/a.md'}]}
+            checkout(root, config, {'notes/a.md': '# A\n'}, 'notes/list.json')
+            result = build(root, '--stages', str(root / 'notes/list.json'))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse((root / 'docs/viewer/index.html').exists())
+            text = (root / 'notes/index.html').read_text()
+            self.assertIn('<title>Urbe notes</title>', text)
+            page = PageParser(text)
+            labels = json.loads(next(s['text'] for s in page.scripts if s['attrs'].get('id') == 'reader-data'))['layout']['labels']
+            self.assertEqual((labels['stages'], labels['sections']), ('Notes', 'On this page'))
+
     def test_invalid_stage_lists_fail_the_build(self):
-        cases = {'Missing stage file': [{'id': 'a', 'title': 'A', 'file': 'docs/absent.md'}],
-                 'Duplicate stage': [{'id': 'a', 'title': 'A', 'file': 'docs/a.md'}, {'id': 'a', 'title': 'B', 'file': 'docs/a.md'}],
-                 'outside the root': [{'id': 'a', 'title': 'A', 'file': '../a.md'}]}
-        for message, stages in cases.items():
+        single = [{'id': 'a', 'title': 'A', 'file': 'docs/a.md'}]
+        cases = {'Missing stage file': {'stages': [{'id': 'a', 'title': 'A', 'file': 'docs/absent.md'}]},
+                 'Duplicate stage': {'stages': [*single, {'id': 'a', 'title': 'B', 'file': 'docs/a.md'}]},
+                 'outside the root': {'stages': [{'id': 'a', 'title': 'A', 'file': '../a.md'}]},
+                 'Unknown label: absent': {'labels': {'absent': 'A'}, 'stages': single}}
+        for message, config in cases.items():
             with self.subTest(message), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp) / 'checkout'
-                checkout(root, stages, {'docs/a.md': '# A\n'})
+                checkout(root, config, {'docs/a.md': '# A\n'})
                 (Path(temp) / 'a.md').write_text('# Outside\n')
                 result = build(root)
                 self.assertNotEqual(result.returncode, 0)

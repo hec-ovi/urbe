@@ -11,7 +11,11 @@ class Stages:
         self.root = Path(root).resolve()
         if not Path(config_path).is_file():
             raise ValueError(f'Missing stage list: {config_path}')
-        self.entries = self.validate(json.loads(Path(config_path).read_text()))
+        config = json.loads(Path(config_path).read_text())
+        self.entries = self.validate(config)
+        self.labels = config.get('labels', {})
+        if not isinstance(self.labels, dict) or any(not isinstance(value, str) or not value for value in self.labels.values()):
+            raise ValueError('Labels need non-empty strings')
         routes = {self.path(entry): entry['id'] for entry in self.entries}
         self.reader = MarkdownReader(Path(output_dir).resolve(), routes)
 

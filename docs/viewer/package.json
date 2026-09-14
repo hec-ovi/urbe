@@ -1,6 +1,6 @@
 {
   "name": "urbe-stage-reader",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "scripts": {
     "bundle": "esbuild web/controller.js --bundle --format=iife --target=es2020 --outfile=generated/reader.js"

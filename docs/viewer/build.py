@@ -9,13 +9,16 @@ from src.static import StaticBuilder
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[2])
-    root = parser.parse_args().root.resolve()
-    output = root / 'docs/viewer/index.html'
+    parser.add_argument('--stages', type=Path, help='stage list, default docs/viewer/stages.json in the root')
+    args = parser.parse_args()
+    root = args.root.resolve()
+    config = (args.stages or root / 'docs/viewer/stages.json').resolve()
+    output = config.parent / 'index.html'
     try:
-        stages = Stages(root, root / 'docs/viewer/stages.json', output.parent).render()
+        stages = Stages(root, config, output.parent)
+        print(StaticBuilder().build(stages.render(), stages.labels, output))
     except (OSError, ValueError) as error:
         sys.exit(f'Build failed: {error}')
-    print(StaticBuilder().build(stages, output))
 
 
 if __name__ == '__main__':
