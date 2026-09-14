@@ -6,7 +6,7 @@ The reader accepts stage documents anywhere inside this checkout. Source and ima
 
 The [coordinator contract](../CONTRACT.md) owns local startup and integration checks. This map records the ten toolkit boundaries and their dependency edges.
 
-Current integration work is paused; see [pending metropolis test](../README.md#pending-metropolis-test). The local resume resolver is `docs/metropolis/INDEX.md`.
+Current integration builds fresh shell-only cities with native Streets assets. The separate metropolis performance task is parked; its local resolver is `docs/metropolis/INDEX.md`.
 
 ## Boxes
 
@@ -39,6 +39,8 @@ Atlas hosts blueprint jobs in a server worker and keeps its city catalog in the 
 Exterior and Engine also receive Materials binding manifests read-only for coordinated exterior styles.
 
 Engine nests the renderer-neutral mission-asset creator behind its own contract.
+
+Compose prepares Streets dependencies before Engine starts; Engine reads its source, installed dependencies and Materials schemas read-only.
 
 Engine serves stable play sessions through Compose and native `npm run play`; restart applies completed code changes. Startup preserves catalogs. `compose/check-catalog.mjs` verifies their published assets and complete archive part hashes with bounded reads.
 

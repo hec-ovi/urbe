@@ -33,6 +33,9 @@ x-engine-volumes: &engine-volumes
   - ./atlas:/work/atlas:ro
   - atlas_modules:/work/atlas/node_modules:ro
   - ./connections:/work/connections:ro
+  - connections_modules:/work/connections/node_modules:ro
+  - ./streets:/work/streets:ro
+  - streets_modules:/work/streets/node_modules:ro
   - ./exterior:/work/exterior:ro
   - exterior_modules:/work/exterior/node_modules:ro
   - ./interior:/work/interior:ro
@@ -40,9 +43,25 @@ x-engine-volumes: &engine-volumes
   - ./simulation:/work/simulation:ro
   - ./materials/themes:/work/materials/themes:ro
   - ./materials/bindings:/work/materials/bindings:ro
+  - ./materials/schema:/work/materials/schema:ro
   - ${URBE_MODELS_DIR:-~/models/quaternius}:/work/models:ro
 
 services:
+  streets:
+    <<: *box
+    working_dir: /work/streets
+    environment:
+      <<: *user
+    command: ["sh", "-c", "npm run build && touch /tmp/urbe-streets-ready && exec sleep infinity"]
+    volumes:
+      - *install-cache
+      - ./compose/box-start.sh:/work/box-start.sh:ro
+      - ./streets:/work/streets
+      - streets_modules:/work/streets/node_modules
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "test", "-f", "/tmp/urbe-streets-ready"]
+
   atlas:
     <<: *box
     working_dir: /work/atlas
@@ -184,6 +203,8 @@ services:
     depends_on:
       atlas:
         condition: service_healthy
+      streets:
+        condition: service_healthy
       exterior:
         condition: service_healthy
       interior:
@@ -218,6 +239,7 @@ services:
 volumes:
   npm_cache:
   atlas_modules:
+  streets_modules:
   connections_modules:
   exterior_modules:
   interior_modules:

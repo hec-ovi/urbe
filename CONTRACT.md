@@ -1,6 +1,6 @@
 # CONTRACT: coordinator
 
-Purpose: starts the nine sibling toolkits and verifies their local integration.
+Purpose: starts the sibling toolkits and verifies their local integration.
 
 ## In
 
@@ -12,6 +12,7 @@ Purpose: starts the nine sibling toolkits and verifies their local integration.
 ## Out
 
 - Local preview services on ports 5301 through 5307, sibling data mounted read-only, generated worlds in Engine's ignored output directory. Engine serves its launcher in stable play mode; source changes apply on restart. Starting the stack preserves the catalog and creates no world. The shared npm cache is a persistent Docker volume.
+- Streets installs and validates its native generator before Engine starts. Engine reads its source/dependencies and the native Materials schema without a network service.
 - Interior builds its portable feasibility entry before its preview starts. Exterior waits for that preview and reads the same compiled entry as native Node.
 - Atlas proxies exterior capability and job requests to Engine through the Compose service address. Engine permits that hostname explicitly; browser viewer links use the public loopback address. Engine can be unavailable without preventing Atlas inspection.
 - Atlas hosts its blueprint-generation API on its preview port. City worker startup follows Atlas's package contract; the ignored `.atlas-cities` catalog persists through the writable checkout mount. Exterior and interior stages remain explicit.
