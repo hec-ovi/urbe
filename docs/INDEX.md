@@ -8,6 +8,8 @@ The [coordinator contract](../CONTRACT.md) owns local startup and integration ch
 
 Current integration builds fresh shell-only cities with native Streets assets. The separate metropolis performance task is parked; its local resolver is `docs/metropolis/INDEX.md`.
 
+The current facade review, accepted details and pending work are recorded in the local [review task list](TASKS.md).
+
 ## Boxes
 
 - atlas: deterministic city architecture and navigation spec: city size, districts, street graph with lanes and their directions, legal turn movements, walking lanes, crossings, highway ramp routing, typed parcels with 3D envelopes, transit and optional hydrology. Publishes reservations and dimensions, builds no surfaces. Depends on: Interior core feasibility and Exterior floor constants as mirrored compatibility contracts; no sibling runtime data.
