@@ -14,6 +14,7 @@ session
 # Local authoring data; public technical docs are listed explicitly.
 /docs/*
 !/docs/INDEX.md
+!/docs/modular-kit.md
 inbox/
 sketchs/
 .research/
