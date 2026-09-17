@@ -1,39 +1,45 @@
 # Modular building kit
 
-Decided 2026-09-17. A city stops generating one bespoke model per parcel and places a small catalog of reusable kits instead.
+Decided 2026-09-17. A city stops generating a bespoke model per parcel. It repeats pieces from the authored families instead.
 
 ## Why
 
-A 1288-parcel city generated 1288 unique shells: 95 GB, 13 minutes of generation, and 1288 unique meshes for the renderer. The same city built from a catalog is one model set placed many times: it fits in under a gigabyte, generates in seconds, and draws instanced.
+A 1288-parcel city generated 1288 unique shells: 95 GB, 13 minutes, and 1288 unique meshes for the renderer. Nothing was shared even when two parcels wanted the same building. Measured on one group of 61 parcels that are all offices, high_rich, on the identical 40x56 lot: 23 distinct floor counts, 27 distinct envelope heights, 10 door positions differing by float dust, all baked into the geometry. None of that describes a different building; it describes where a building stands.
 
 ## Shape
 
-A **kit** covers one (building type, wealth tier, lot size, style variant) and holds three stackable pieces:
+The authored families are the product: corporate-sectors, faceted-bays, white-grid, balcony-grid, mirror-shutters, mirror-frame, plus the rounded, octagon, cylinder, pyramid and setback shapes. A family is authored once as pieces and repeated, never regenerated per parcel.
 
-- `base`: ground floor, entrance, street frontage
-- `middle`: exactly one floor, tileable vertically any number of times
-- `crown`: top floor and roof, including roof access and equipment
+Height repeats floors. Width and depth repeat bays. Atlas lot dimensions are all multiples of 8 m (16, 24, 32, 40, 56), so every lot is a whole number of 8 m bays: 2, 3, 5 or 7. Nothing is stretched or re-cut to fit.
 
-Any floor count comes from one kit: base, N middles, crown. Around 60-80 kits per city, each placed 15-20 times.
+Per family, six pieces:
 
-Variety per instance, never per model: rotation, mirroring, tier colors and material variants, signage, ads, roof props.
+- `corner`, `bay`, `entrance-bay`, each in three vertical bands: ground, middle, crown
+
+A 56 m facade is two corners around five bays and one entrance bay. A 30 floor tower is a ground band, 28 middle bands and a crown. Six families is about 36 pieces for a whole city.
+
+Variety comes from which family, how many bays, how many floors, tier materials, rotation, corner treatment, signage, ads and roof props. Not from unique geometry. The bay repeats, so the renderer draws it instanced.
 
 ## Per box
 
-**atlas**: publishes a standard lot size set and subdivides blocks so every ordinary parcel takes one of those sizes exactly. Leftover land stays open. Flags 10-30 landmark parcels per city (hospital, police, singular corpo towers) that keep their own footprint.
+**atlas**: publishes the standard lot sizes (landed) and flags 10-30 landmark parcels per city. Envelope height and the access point must follow the lot and type, not the parcel, so identical lots ask for identical buildings.
 
-**exterior**: generates a kit per key instead of a building per parcel. Same seed and key, same kit. The middle piece tiles seamlessly: matching floor planes, continuous facade pattern, aligned window bands. Signage is not baked; the kit publishes sign anchors and the instance carries the text. Landmark parcels still take a bespoke building through the existing entry.
+**exterior**: authors each family as its six pieces instead of generating a whole building per parcel. A bay tiles seamlessly with itself and with its corners: matching planes, continuous facade pattern, aligned window bands. Signage is not baked; pieces publish sign anchors. Links carve per instance by swapping a bay, never by giving the parcel its own building. A family never loses its architecture to a geometry budget; budgets remove repeat noise, never form.
 
-**interior**: one interior per kit floor kind (base, middle, crown), reused by every instance, instead of one interior per building.
+**interior**: one interior per band kind, reused by every instance.
 
-**engine**: assembly groups parcels by kit key, requests each kit once, and publishes a placement table (parcel, kit, floor count, rotation, mirror) in the manifest. Runtime stacks middles per instance, draws placements instanced, and applies per-instance signs, ads and props.
+**engine**: assembles a building as family, bays across, bays deep, floors, materials, and publishes the placement of each piece. Runtime draws pieces instanced and applies per-instance signs, ads and props.
 
-**materials**: tier and style variants carry the visual difference between instances of one kit.
+**materials**: tier and style variants carry the difference between instances, and the patterns that replace removed geometry (blind slats, louvre blades, panel joints, fixing heads).
 
 ## Order
 
-1. exterior geometry weight (in progress): welding, shared frame profiles, blinds as material, triangle budget
-2. atlas standard lot sizes and landmark flags
-3. exterior kit pieces and sign anchors
-4. engine assembly catalog, placements and instanced runtime
-5. interior per-kit interiors
+1. exterior: families back at full strength under the geometry budget (in progress)
+2. engine: the building preview renders exactly like the game, so quality is judgeable
+3. exterior: the six pieces per family
+4. engine: assemble buildings from pieces, place and draw them instanced
+5. interior: per band interiors
+
+## Notes
+
+`engine/src/assembly/KitCatalog.js` groups whole identical buildings. Once buildings assemble from bays there is nothing to group, so its grouping goes and only its lot frame math survives.
