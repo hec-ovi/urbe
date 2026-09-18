@@ -1,39 +1,35 @@
 # Coordinator box map
 
-- [Stage reader](viewer/CONTRACT.md): static dark HTML page with one Markdown document per project stage. Inputs: [stage list](viewer/schemas/config.schema.json), outputs: [snapshot](viewer/schemas/snapshot.schema.json). Depends on the stage Markdown files only.
+The [coordinator contract](../CONTRACT.md) owns local startup and integration checks. Cities are built from a reusable catalog: the [modular building kit](modular-kit.md) records that design, what each box owes it and what has landed.
 
-The reader accepts stage documents anywhere inside this checkout. Source and image references may link to sibling projects and original local reference folders.
-
-The [coordinator contract](../CONTRACT.md) owns local startup and integration checks. This map records the ten toolkit boundaries and their dependency edges.
-
-Current integration builds fresh shell-only cities with native Streets assets. The local `docs/STATE.md` says where the project stands; the local `docs/design/INDEX.md` resolves one current-state document per stage.
-
-Cities are built from a reusable catalog: the [modular building kit](modular-kit.md) records that design, what each box owes it and the order the steps land in.
+The [stage reader](viewer/CONTRACT.md) is a static dark HTML page with one Markdown document per project stage. Inputs: [stage list](viewer/schemas/config.schema.json). Outputs: [snapshot](viewer/schemas/snapshot.schema.json). Depends on the stage Markdown files only.
 
 ## Boxes
 
-- atlas: deterministic city architecture and navigation spec: city size, districts, street graph with lanes and their directions, legal turn movements, walking lanes, crossings, highway ramp routing, typed parcels with 3D envelopes, transit and optional hydrology. Publishes reservations and dimensions, builds no surfaces. Depends on: Interior core feasibility and Exterior floor constants as mirrored compatibility contracts; no sibling runtime data.
-- streets: the city's street construction from Atlas architecture: paving, curbs, gutters, corner returns, lane markings, crossing fields, parking bays, guardrails and surface wear, as streamable model assets plus the exact ground partition. Depends on: atlas, materials.
-- connections: base building links and movement networks from Atlas, plus post-Exterior rooftop antenna spans over explicit obstacle volumes. Depends on: atlas for the base pass; Exterior's attachment snapshot contract for the optional rooftop pass.
-- exterior: one building shell, openings, facade services and per-floor blueprint. Depends on: atlas, connections, interior core feasibility, materials.
-- interior: furnished floor geometry, rooms, vertical circulation, NPC anchors and navigation. Depends on: exterior, materials.
-- materials: themed PBR maps, variants, water surfaces, fitted decals and their schema-checked database. Depends on: Atlas hydrology keys and street-construction role data; no Atlas runtime import.
-- simulation: deterministic population identities, homes, jobs, routines, continuity and saves. Depends on: atlas, connections, interior, naming.
-- naming: themed place names, NPC type prompts, name pools and business exports. Depends on: atlas, optional simulation statistics, materials.
-- quests: two-stage story and gameplay authoring, typed flows, dialog context and engine handoff bundles. Depends on: atlas world input, naming, simulation, engine investigation and mission-asset contracts.
-- engine: city assembly and first-person play with streamed interiors, characters, physics, transit, quests, investigations and saves. Depends on: every sibling contract.
+- [atlas](../atlas/CONTRACT.md): rectangular city plan with block templates, standard lots, street graph, typed parcels and transit. Default city 3000 x 3000 m. Inputs: [params](../atlas/schema/params.ts). Outputs: [blueprint](../atlas/schema/blueprint.ts). Depends on Interior core feasibility and Exterior floor constants as mirrored compatibility contracts; no sibling runtime data.
+- [streets](../streets/CONTRACT.md): street construction as reusable 8 m units, fitted closures, junctions and original prop placements. Inputs: [request](../streets/src/schema/native-request.ts). Outputs: [manifest](../streets/src/schema/native-result.ts), [kit](../streets/schemas/street-kit.schema.json), [placements](../streets/schemas/street-placement.schema.json). Depends on atlas, materials.
+- [connections](../connections/CONTRACT.md): base building links and movement networks from Atlas, plus post-Exterior rooftop antenna spans over explicit obstacle volumes. Inputs: [params](../connections/schemas/params.schema.json), [rooftop request](../connections/schemas/rooftop-span-request.schema.json). Outputs: [document](../connections/schemas/output.schema.json), [rooftop document](../connections/schemas/rooftop-span-output.schema.json). Depends on atlas for the base pass; Exterior's attachment snapshot contract for the optional rooftop pass.
+- [exterior](../exterior/CONTRACT.md): seven building designs; six families authored as nine pieces, plus per-parcel shells for landmarks. Inputs: [building request](../exterior/schemas/building-request.schema.json), [kit request](../exterior/schemas/kit-request.schema.json). Outputs: [blueprint](../exterior/schemas/blueprint.schema.json), [kit](../exterior/schemas/kit.schema.json), [placements](../exterior/schemas/placement.schema.json). Depends on atlas, connections, interior core feasibility, materials.
+- [interior](../interior/CONTRACT.md): shared room modules and three reusable layouts (ground, middle, crown). Inputs: [request](../interior/schemas/request.schema.json). Outputs: [building](../interior/schemas/building.schema.json), [layout](../interior/schemas/floor-placement.schema.json), [modules](../interior/schemas/modules.schema.json). Depends on exterior, materials.
+- [materials](../materials/CONTRACT.md): themed PBR maps, variants, water surfaces, fitted decals and their schema-checked database. Inputs/outputs: [material entry](../materials/schema/material-entry.schema.json). Depends on Atlas hydrology keys and street-construction role data; no Atlas runtime import.
+- [simulation](../simulation/CONTRACT.md): deterministic population identities, homes, jobs, routines, continuity and saves. Inputs: [simulation input](../simulation/src/schemas/input.ts). Depends on atlas, connections, interior, naming.
+- [naming](../naming/CONTRACT.md): themed place names, NPC type prompts, name pools and business exports. Inputs: [world](../naming/schema/world-state.schema.json). Outputs: [named world](../naming/schema/named-world.schema.json). Depends on atlas, optional simulation statistics, materials.
+- [quests](../quests/CONTRACT.md): two-stage story and gameplay authoring, typed flows, dialog context and engine handoff bundles. Inputs: [handoff](../quests/handoff/schema/handoff-input.schema.json). Depends on atlas world input, naming, simulation, engine investigation and mission-asset contracts.
+- [engine](../engine/CONTRACT.md): city assembly and first-person play. Ordinary parcels become Exterior placement tables; landmarks keep unique shells. Inputs: [launcher](../engine/src/server/schema/launcher-request.schema.json). Outputs: [world manifest](../engine/src/assembly/schema/world-manifest.schema.json), [kit placements](../engine/src/assembly/kit/kit-placements.schema.json). Depends on every sibling contract.
 
 ## Data flow
 
-`atlas -> connections/base -> exterior -> interior -> engine`
+`atlas -> connections/base -> exterior kit -> engine placement tables`
 
-`atlas -> streets -> engine`
+`atlas -> streets (8 m units) -> engine`
 
 `exterior -> connections/rooftop-spans -> engine`
 
 `atlas -> naming -> simulation -> quests -> engine`
 
-Materials feeds streets, exterior, interior and engine. Naming may use simulation statistics, and falls back to Atlas statistics. Quests emits separate questline, objective, investigation, mission-asset, item-binding, fixed mechanic anchor and host capability documents for Engine.
+Interior publishes shared modules and ground/middle/crown layouts into Engine. Materials feeds streets, exterior, interior and engine. Naming may use simulation statistics, and falls back to Atlas statistics. Quests emits separate questline, objective, investigation, mission-asset, item-binding, fixed mechanic anchor and host capability documents for Engine.
+
+Plans are axis-aligned rectangles with block templates. Ordinary lots are the six standard sizes, every side a multiple of 8 m. Default city 3000 x 3000 m. Launcher sizes: Small 500 m, Medium 1000 m, Big 3000 m.
 
 Preview wiring: Interior builds its portable feasibility entry before serving. `docker-compose.yml` mounts that build and its schemas read-only into Exterior.
 Atlas's exterior job proxy uses Engine's Compose service address; viewer links use its loopback preview address.
@@ -42,7 +38,7 @@ Exterior and Engine also receive Materials binding manifests read-only for coord
 
 Engine nests the renderer-neutral mission-asset creator behind its own contract.
 
-Compose prepares Streets dependencies before Engine starts; Engine reads its source, installed dependencies and Materials schemas read-only.
+Compose prepares Streets before Engine starts; Engine reads its source, installed dependencies and Materials schemas read-only.
 
 Engine serves stable play sessions through Compose and native `npm run play`; restart applies completed code changes. Startup preserves catalogs. `compose/check-catalog.mjs` verifies their published assets and complete archive part hashes with bounded reads.
 

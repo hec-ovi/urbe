@@ -2,6 +2,8 @@
 
 Purpose: starts the sibling toolkits and verifies their local integration.
 
+Status: 0.8.
+
 ## In
 
 - Sibling checkouts and their public contracts: [docs/INDEX.md](docs/INDEX.md).
@@ -11,13 +13,16 @@ Purpose: starts the sibling toolkits and verifies their local integration.
 
 ## Out
 
-- Local preview services on ports 5301 through 5307, sibling data mounted read-only, generated worlds in Engine's ignored output directory. Engine serves its launcher in stable play mode; source changes apply on restart. Starting the stack preserves the catalog and creates no world. The shared npm cache is a persistent Docker volume.
-- Streets installs and validates its native generator before Engine starts. Engine reads its source/dependencies and the native Materials schema without a network service.
+- Nine Compose services. Seven bind loopback ports 5301 through 5307: Atlas 5301 (`npm run preview`), Connections 5302 (`npm run dev`), Exterior 5303 (`npm run preview`), Interior 5304 (`npm run preview`), Simulation 5305 (`npm run testbed`, page `/testbed/`), Engine 5306 (`npm run play`), Materials 5307 (`npm run preview`). Streets typechecks then idles with no public port. Quests builds then watches with no public port. Naming is a host CLI and library.
+- Sibling data mounted read-only, generated worlds in Engine's ignored output directory. Engine serves its launcher in stable play mode; source changes apply on restart. Starting the stack preserves the catalog and creates no world. The shared npm cache is a persistent Docker volume.
+- Streets becomes healthy before Engine starts. Engine reads Streets, its own source and installed dependencies, and the native Materials schema in-process.
 - Interior builds its portable feasibility entry before its preview starts. Exterior waits for that preview and reads the same compiled entry as native Node.
-- Atlas proxies exterior capability and job requests to Engine through the Compose service address. Engine permits that hostname explicitly; browser viewer links use the public loopback address. Engine can be unavailable without preventing Atlas inspection.
+- Atlas proxies exterior capability and job requests to Engine through the Compose service address `http://engine:5306`. Engine permits that hostname explicitly; browser viewer links use the public loopback address. Engine can be unavailable without preventing Atlas inspection.
 - Atlas hosts its blueprint-generation API on its preview port. City worker startup follows Atlas's package contract; the ignored `.atlas-cities` catalog persists through the writable checkout mount. Exterior and interior stages remain explicit.
-- `compose/check-boxes.sh` builds shared prerequisites, then runs every box's tests and builds. `compose/check-previews.sh` verifies served pages, material data, street bindings, exterior API parity and every ready catalog world. `node compose/check-catalog.mjs [baseUrl]` checks the current catalog, exact blueprint/Connections hashes, every archive part and served shell/floor assets without mutation.
-- `node compose/check-launcher.mjs [small|medium|large] [baseUrl]` creates a fresh template city and free-play game, checks served shell files, then saves and resumes through the launcher API. Defaults: small and `http://localhost:5306`. Generated check cities and games remain in Engine's ignored catalog.
+- `compose/check-boxes.sh` builds Interior's feasibility entry, then runs tests and production builds for atlas, connections, exterior, interior, materials, naming, quests, simulation and engine.
+- `compose/check-previews.sh` verifies served pages, material data, street bindings, exterior API parity and every ready catalog world.
+- `node compose/check-catalog.mjs [baseUrl]` checks the current catalog, exact blueprint/Connections hashes, every archive part and served shell/floor assets without mutation. Default `http://localhost:5306`.
+- `node compose/check-launcher.mjs [small|medium|large] [baseUrl]` creates a fresh template city and free-play game, checks served shell files, then saves and resumes through the launcher API. Defaults: small and `http://localhost:5306`. Template sizes: Small 500 m, Medium 1000 m, Big 3000 m. Generated check cities and games remain in Engine's ignored catalog.
 
 ## Errors and invariants
 

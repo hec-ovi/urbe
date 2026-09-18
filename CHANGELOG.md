@@ -1,5 +1,7 @@
 # Changelog
 
+0.8: Coordinator maps a kit city: Engine assembles Exterior pieces as placement tables, Streets publishes 8 m units, Interior shares modules and three layouts, Atlas plans rectangles with block templates, default city 3000 x 3000 m, launcher sizes Small 500, Medium 1000, Big 3000.
+
 0.7: Compose opens the Engine launcher with stable play sessions and validates saved catalog worlds.
 
 0.7: agent completion rebuilds one fresh playable city with current requested settings and verifies its exact game link.

@@ -1,52 +1,39 @@
 # Modular building kit
 
-Decided 2026-09-17. A city stops generating a bespoke model per parcel. It repeats pieces from the authored families instead.
+A city repeats authored pieces from the families.
 
-## Why
+## Designs
 
-A 1288-parcel city generated 1288 unique shells: 95 GB, 13 minutes, and 1288 unique meshes for the renderer. Nothing was shared even when two parcels wanted the same building. Measured on one group of 61 parcels that are all offices, high_rich, on the identical 40x56 lot: 23 distinct floor counts, 27 distinct envelope heights, 10 door positions differing by float dust, all baked into the geometry. None of that describes a different building; it describes where a building stands.
+Seven designs cover the city: corporate-sectors, faceted-bays, white-grid, balcony-grid, mirror-shutters, mirror-frame and garden-taper. The first six are registered families with piece sets. Garden-taper is a landmark design without a piece set.
 
-## Shape
-
-The authored designs are the product: corporate-sectors, faceted-bays, white-grid, balcony-grid, mirror-shutters, mirror-frame and garden-taper. A family is authored once as pieces and repeated, never regenerated per parcel.
-
-Height repeats floors. Width and depth repeat bays. Atlas lot dimensions are all multiples of 8 m (16, 24, 32, 40, 56), so every lot is a whole number of 8 m bays: 2, 3, 5 or 7. Nothing is stretched or re-cut to fit.
+Height repeats floors. Width and depth repeat 8 m bays. Atlas lot dimensions are all multiples of 8 m (16, 24, 32, 40, 56), so every ordinary lot is a whole number of bays. Nothing is stretched or re-cut to fit.
 
 Per family, nine pieces:
 
 - `corner`, `bay`, `entrance-bay`, each in three vertical bands: ground, middle, crown
 
-A 56 m facade is two corners around five bays and one entrance bay. A 30 floor tower is a ground band, 28 middle bands and a crown. Seven families is 63 pieces for a whole city.
+A 56 m facade is two 4 m corner arms and six 8 m bays. A twenty-floor tower is a ground band, eighteen middle bands and a crown. Six families is 54 pieces for ordinary parcels.
 
-Variety comes from which family, how many bays, how many floors, tier materials, rotation, corner treatment, signage, ads and roof props. Not from unique geometry. The bay repeats, so the renderer draws it instanced.
+Variety comes from which family, how many bays, how many floors, tier materials, rotation, corner treatment, signage, ads and roof props.
 
 ## Per box
 
-**atlas**: publishes the standard lot sizes (landed) and flags 10-30 landmark parcels per city. Envelope height and the access point must follow the lot and type, not the parcel, so identical lots ask for identical buildings.
+**atlas**: publishes the six standard lot sizes, rectangular blocks and lots, and block templates keyed by size and zone. Envelope height and the access point follow the lot and type, so identical lots ask for identical buildings. Ten to thirty landmark parcels per city stay one of a kind. Default city 3000 x 3000 m.
 
-**exterior**: authors each family as its six pieces instead of generating a whole building per parcel. A bay tiles seamlessly with itself and with its corners: matching planes, continuous facade pattern, aligned window bands. Signage is not baked; pieces publish sign anchors. Links carve per instance by swapping a bay, never by giving the parcel its own building. A family never loses its architecture to a geometry budget; budgets remove repeat noise, never form.
+**exterior**: authors each registered family as nine pieces. A bay tiles with itself and with its corners: matching planes, continuous facade pattern, aligned window bands. Pieces publish sign anchors. Links carve per instance by swapping a bay. A family never loses its architecture to a geometry budget; budgets remove repeat noise, never form. `npm run kit` writes the piece GLBs and `kit.json`.
 
-**interior**: one interior per band kind, reused by every instance.
+**interior**: shared compressed room modules and three reusable layouts, ground, middle and crown, reused by every furnished instance.
 
-**engine**: assembles a building as family, bays across, bays deep, floors, materials, and publishes the placement of each piece. Runtime draws pieces instanced and applies per-instance signs, ads and props.
+**streets**: reusable 8 m units along each run, with fitted closures, junctions and original prop placements. No street piece is stretched.
+
+**engine**: assembles an ordinary building as family, bays across, bays deep, floors and materials, and publishes the placement table. Runtime draws pieces instanced and applies per-instance signs, ads and props. Landmarks and parcels the kit cannot stand on keep a unique shell. Launcher sizes: Small 500 m, Medium 1000 m, Big 3000 m.
 
 **materials**: tier and style variants carry the difference between instances, and the patterns that replace removed geometry (blind slats, louvre blades, panel joints, fixing heads).
 
-## Order
+## Landed
 
-Done. Each was verified by the orchestrator's own measurement, not by the owning agent's report.
-
-1. exterior, families at full strength under the geometry budget: the budget takes repeat noise and never form. Mean shell went from 74.9 MB and 979,560 triangles to 3.53 MB and 58,059, with every parcel keeping the family it chose.
-2. atlas standard lot sizes: six sizes, every dimension a multiple of 8 m, all 1,589 ordinary parcels matching their declared size exactly, 22 landmarks.
-3. engine, the building preview renders exactly as the game does, so quality is judgeable. On the WebGL2 fallback add `&quality=high`, since tier low has no bloom and no environment probe by design.
-4. exterior, the pieces: six families, nine pieces each, 309 KiB of geometry for a whole city. A 56x40 m twenty floor tower is 480 placements of 9 distinct pieces.
-
-Next, in this order.
-
-5. engine adopts the pieces: assemble a building from its family, bay count and floor count, publish the placement table, draw the pieces instanced, letter signs per instance. Until this lands every city still comes from the per-parcel generator, so nothing on screen is built from the kit yet.
-6. the families themselves get remade, judged against the preview.
-7. interior, per band interiors.
-
-## Notes
-
-`engine/src/assembly/KitCatalog.js` groups whole identical buildings. Once buildings assemble from bays there is nothing to group, so its grouping goes and only its lot frame math survives.
+- Atlas standard lots, rectangular plans, block templates, default 3000 x 3000 m.
+- Exterior nine pieces for each of the six registered families, kit CLI, `planAssembly` and recipes.
+- Engine ordinary parcels as placement tables, instanced draw, cuboid colliders, cell streaming.
+- Streets 8 m piece kit with fitted closures and junctions.
+- Interior shared modules and the three band layouts.
