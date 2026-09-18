@@ -34,11 +34,18 @@ Variety comes from which family, how many bays, how many floors, tier materials,
 
 ## Order
 
-1. exterior: families back at full strength under the geometry budget (in progress)
-2. engine: the building preview renders exactly like the game, so quality is judgeable
-3. exterior: the six pieces per family
-4. engine: assemble buildings from pieces, place and draw them instanced
-5. interior: per band interiors
+Done. Each was verified by the orchestrator's own measurement, not by the owning agent's report.
+
+1. exterior, families at full strength under the geometry budget: the budget takes repeat noise and never form. Mean shell went from 74.9 MB and 979,560 triangles to 3.53 MB and 58,059, with every parcel keeping the family it chose.
+2. atlas standard lot sizes: six sizes, every dimension a multiple of 8 m, all 1,589 ordinary parcels matching their declared size exactly, 22 landmarks.
+3. engine, the building preview renders exactly as the game does, so quality is judgeable. On the WebGL2 fallback add `&quality=high`, since tier low has no bloom and no environment probe by design.
+4. exterior, the pieces: six families, nine pieces each, 309 KiB of geometry for a whole city. A 56x40 m twenty floor tower is 480 placements of 9 distinct pieces.
+
+Next, in this order.
+
+5. engine adopts the pieces: assemble a building from its family, bay count and floor count, publish the placement table, draw the pieces instanced, letter signs per instance. Until this lands every city still comes from the per-parcel generator, so nothing on screen is built from the kit yet.
+6. the families themselves get remade, judged against the preview.
+7. interior, per band interiors.
 
 ## Notes
 
