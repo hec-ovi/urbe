@@ -8,15 +8,15 @@ A 1288-parcel city generated 1288 unique shells: 95 GB, 13 minutes, and 1288 uni
 
 ## Shape
 
-The authored families are the product: corporate-sectors, faceted-bays, white-grid, balcony-grid, mirror-shutters, mirror-frame, plus the rounded, octagon, cylinder, pyramid and setback shapes. A family is authored once as pieces and repeated, never regenerated per parcel.
+The authored designs are the product: corporate-sectors, faceted-bays, white-grid, balcony-grid, mirror-shutters, mirror-frame and garden-taper. A family is authored once as pieces and repeated, never regenerated per parcel.
 
 Height repeats floors. Width and depth repeat bays. Atlas lot dimensions are all multiples of 8 m (16, 24, 32, 40, 56), so every lot is a whole number of 8 m bays: 2, 3, 5 or 7. Nothing is stretched or re-cut to fit.
 
-Per family, six pieces:
+Per family, nine pieces:
 
 - `corner`, `bay`, `entrance-bay`, each in three vertical bands: ground, middle, crown
 
-A 56 m facade is two corners around five bays and one entrance bay. A 30 floor tower is a ground band, 28 middle bands and a crown. Six families is about 36 pieces for a whole city.
+A 56 m facade is two corners around five bays and one entrance bay. A 30 floor tower is a ground band, 28 middle bands and a crown. Seven families is 63 pieces for a whole city.
 
 Variety comes from which family, how many bays, how many floors, tier materials, rotation, corner treatment, signage, ads and roof props. Not from unique geometry. The bay repeats, so the renderer draws it instanced.
 

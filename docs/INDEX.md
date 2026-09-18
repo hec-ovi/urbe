@@ -6,9 +6,7 @@ The reader accepts stage documents anywhere inside this checkout. Source and ima
 
 The [coordinator contract](../CONTRACT.md) owns local startup and integration checks. This map records the ten toolkit boundaries and their dependency edges.
 
-Current integration builds fresh shell-only cities with native Streets assets. The separate metropolis performance task is parked; its local resolver is `docs/metropolis/INDEX.md`.
-
-The current facade review, accepted details and pending work are recorded in the local [review task list](TASKS.md).
+Current integration builds fresh shell-only cities with native Streets assets. The local `docs/STATE.md` says where the project stands; the local `docs/design/INDEX.md` resolves one current-state document per stage.
 
 Cities are built from a reusable catalog: the [modular building kit](modular-kit.md) records that design, what each box owes it and the order the steps land in.
 
