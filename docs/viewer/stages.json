@@ -1,16 +1,14 @@
 {
   "stages": [
-    {"id": "overview", "title": "Overview", "file": "docs/viewer/stages/overview.md"},
-    {"id": "atlas", "title": "Atlas", "file": "docs/viewer/stages/atlas.md"},
-    {"id": "streets", "title": "Streets", "file": "2026-09-13/streets.md"},
-    {"id": "links", "title": "Links", "file": "2026-09-13/links.md"},
-    {"id": "exteriors", "title": "Exteriors", "file": "2026-09-13/exteriors.md"},
-    {"id": "interiors", "title": "Interiors", "file": "2026-09-13/interiors.md"},
-    {"id": "quests", "title": "Quests and Naming", "file": "2026-09-13/quests.md"},
-    {"id": "materials", "title": "Materials", "file": "2026-09-13/materials.md"},
-    {"id": "simulation", "title": "Simulation", "file": "2026-09-13/simulation.md"},
-    {"id": "gameplay", "title": "Gameplay", "file": "2026-09-13/gameplay.md"},
-    {"id": "coordinator", "title": "Coordinator", "file": "2026-09-13/coordinator.md"},
-    {"id": "modeling", "title": "Modeling", "file": "2026-09-13/modeling.md"}
+    {"id": "state", "title": "State", "file": "docs/STATE.md"},
+    {"id": "performance", "title": "Performance", "file": "docs/design/performance.md"},
+    {"id": "city-plan", "title": "City plan", "file": "docs/design/city-plan.md"},
+    {"id": "streets", "title": "Streets", "file": "docs/design/streets.md"},
+    {"id": "links", "title": "Links", "file": "docs/design/links.md"},
+    {"id": "buildings", "title": "Buildings", "file": "docs/design/buildings.md"},
+    {"id": "interiors", "title": "Interiors", "file": "docs/design/interiors.md"},
+    {"id": "materials", "title": "Materials", "file": "docs/design/materials.md"},
+    {"id": "story", "title": "Story", "file": "docs/design/story.md"},
+    {"id": "gameplay", "title": "Gameplay", "file": "docs/design/gameplay.md"}
   ]
 }
