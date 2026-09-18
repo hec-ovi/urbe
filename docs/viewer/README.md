@@ -2,15 +2,17 @@
 
 Version: 2.2.0.
 
-One Markdown document per project stage (Atlas, Streets, Exterior...), read in a static dark HTML page. Open `docs/viewer/index.html` directly in a browser; no server needed.
+One Markdown document per project stage, read in a static dark HTML page. Open `docs/viewer/index.html` directly in a browser; no server needed.
 
 ## Add a stage
 
 Put the Markdown file anywhere inside the coordinator checkout and add its root-relative path to `docs/viewer/stages.json`:
 
 ```json
-{"id": "streets", "title": "Streets", "file": "docs/viewer/stages/streets.md"}
+{"id": "streets", "title": "Streets", "file": "docs/design/streets.md"}
 ```
+
+The default list is `[stages.json](stages.json)`. Fields: `id` (unique, used in `#stage=`), `title` (sidebar label), `file` (Markdown path inside the root).
 
 ## Another reader
 
@@ -49,8 +51,8 @@ Reload the open tab afterwards. Dependencies are needed only to rebuild.
 
 - `build.py`, `src/`: reads the stage list, renders each document, writes the HTML.
 - `web/views/`, `web/components/`, `web/ui/`: schema-driven presentation.
-- `web/data.js`: stage lookup; `web/controller.js`: routing and theme.
+- `web/data.js`: stage lookup; `web/controller.js`: routing; `web/theme.js`: theme.
 
-Stage documents and the generated HTML stay local and ignored. The reader code and its contract are committed.
+Routes: `#stage=<id>` and, when a section is selected, `&anchor=<section>`. Stage documents and the generated HTML stay local and ignored. The reader code and its contract are committed.
 
 Source and image links can refer to existing files in sibling checkouts or original reference folders. The reader resolves them relative to its HTML; those files must remain available locally.
