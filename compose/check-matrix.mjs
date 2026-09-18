@@ -8,7 +8,7 @@
  * node compose/check-matrix.mjs [--sizes 400,800] [--seeds urbe,rain] [--interiors 0] [--keep]
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 
@@ -46,9 +46,10 @@ for ( const seed of seeds ) for ( const size of sizes ) for ( const variant of V
 	const t1 = performance.now();
 	const engine = run( 'engine', [ 'run', 'assemble-city', '--', '--blueprint', blueprint, '--out', join( dir, 'city' ), '--interiors', String( interiors ) ] );
 	const ok = engine.status === 0;
-	const summary = ( engine.stdout.match( /(\d+)\/(\d+) buildings passed \((\d+) kit, (\d+) generated\).*?; ([\d.]+) s, ([\d.]+) MB/ ) ?? [] );
+	const qa = readQa( join( dir, 'city', 'qa-report.json' ) );
 	rows.push( { ...row, ok, stage: ok ? null : 'engine', error: ok ? null : firstError( engine ), engineSeconds: seconds( t1 ),
-		buildings: summary[ 2 ] ? Number( summary[ 2 ] ) : null, kit: summary[ 3 ] ? Number( summary[ 3 ] ) : null, mb: summary[ 6 ] ? Number( summary[ 6 ] ) : null } );
+		buildings: qa?.totals?.passed ?? null, kit: qa?.totals?.kit ?? null, empty: qa?.parcels?.filter( p => p.source === 'empty' ).length ?? null,
+		mb: qa?.totals?.bytes ? Math.round( qa.totals.bytes / 1e5 ) / 10 : null } );
 	report( row, rows.at( - 1 ) );
 
 }
@@ -73,12 +74,18 @@ function firstError( result ) {
 
 }
 
+function readQa( path ) {
+
+	try { return JSON.parse( readFileSync( path, 'utf8' ) ); } catch { return null; }
+
+}
+
 function seconds( since ) { return Math.round( ( performance.now() - since ) / 100 ) / 10; }
 
 function report( row, full ) {
 
 	console.log( full.ok
-		? `ok    ${row.id}  atlas ${row.atlasSeconds}s  engine ${full.engineSeconds}s  ${full.buildings} buildings (${full.kit} kit)  ${full.mb} MB`
+		? `ok    ${row.id}  atlas ${row.atlasSeconds}s  engine ${full.engineSeconds}s  ${full.buildings} buildings (${full.kit} kit, ${full.empty} empty)  ${full.mb} MB`
 		: `FAIL  ${row.id}  ${full.stage}: ${full.error}` );
 
 }
