@@ -41,9 +41,20 @@ assert.deepEqual( [ saved.selectedInteriors, saved.quests, saved.sideJobs ], [ [
 const manifest = await document( `${path}/manifest.json` );
 const atlas = await document( `${path}/blueprint.json` );
 assert.deepEqual( manifest.interiors, [] );
-assert.deepEqual( [...manifest.parcels].sort(), atlas.parcels.map( parcel => parcel.id ).sort() );
+// Every plan parcel is accounted for: standing (kit or shell) or an empty lot a merge took.
+const standing = atlas.parcels.map( parcel => parcel.id ).filter( id => manifest.sources?.[ id ] !== 'empty' );
+assert.ok( atlas.parcels.every( parcel => [ 'kit', 'shell', 'empty' ].includes( manifest.sources?.[ parcel.id ] ) ), 'every parcel has a source' );
+assert.deepEqual( [ ...manifest.parcels ].sort(), standing.sort() );
 for ( const id of manifest.parcels ) {
 
+	if ( manifest.sources?.[ id ] === 'kit' ) {
+
+		// A kit parcel stands on a shared plan: its record names the plan and its transform.
+		const record = await document( `${path}/${id}/${id}.placements.json` );
+		assert.ok( record.plan && record.origin, `kit record ${id} names no plan` );
+		continue;
+
+	}
 	await document( `${path}/${id}/${id}.blueprint.json` );
 	const response = await fetch( `${base}${path}/${id}/${id}.glb`, { method: 'HEAD' } );
 	assert.ok( response.ok && Number( response.headers.get( 'content-length' ) ) > 0
