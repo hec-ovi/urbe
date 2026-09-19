@@ -56,6 +56,9 @@ for ( const seed of seeds ) for ( const size of sizes ) for ( const variant of V
 
 writeFileSync( join( OUT, 'report.json' ), JSON.stringify( rows, null, 1 ) );
 const failed = rows.filter( r => ! r.ok );
+// The shared store is swept here and not by the batches, so batches running
+// side by side never remove each other's plans; only sets no world names go.
+if ( ! failed.length ) spawnSync( 'npm', [ 'run', 'gc' ], { cwd: join( ROOT, 'engine' ), stdio: 'inherit' } );
 console.log( `\n${rows.length - failed.length}/${rows.length} combinations pass; report: ${join( OUT, 'report.json' )}` );
 for ( const r of failed ) console.log( `  FAIL ${r.id}  ${r.stage}: ${r.error}` );
 process.exit( failed.length ? 1 : 0 );
