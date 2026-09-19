@@ -65,10 +65,20 @@ for ( const shot of shots ) {
 	}, shot );
 
 	// A shot may also run its own line first: opening a panel, reading a value.
+	// A line that throws is reported and the tour goes on; one bad expression
+	// must not cost the frames after it.
 	if ( shot.js ) {
 
-		const answer = await page.evaluate( shot.js );
-		if ( answer !== undefined ) console.log( `${shot.name} js:`, JSON.stringify( answer ).slice( 0, 700 ) );
+		try {
+
+			const answer = await page.evaluate( shot.js );
+			if ( answer !== undefined ) console.log( `${shot.name} js:`, JSON.stringify( answer ).slice( 0, 700 ) );
+
+		} catch ( error ) {
+
+			console.log( `${shot.name} js failed:`, String( error?.message ?? error ).split( '\n' )[ 0 ].slice( 0, 200 ) );
+
+		}
 
 	}
 	await page.waitForTimeout( shot.wait ?? 6000 );
