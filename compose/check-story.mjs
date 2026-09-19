@@ -29,13 +29,12 @@ console.log( `ok interiors ${instances.ids.length}: ${instances.ids.join( ' ' )}
 
 started = performance.now();
 const { quests } = await call( 'generateQuests', { cityId, interiorIds: instances.ids, mainBrief: '', sideJobs: Number( sideJobs ) } );
-const main = quests.main ?? quests.questlines?.[ 0 ] ?? quests[ 0 ];
-assert.ok( main?.id, 'no questline was generated' );
-console.log( `ok story ${main.id} "${main.title ?? main.name ?? ''}" with ${quests.sideJobs?.length ?? quests.side?.length ?? '?'} side jobs, ${( ( performance.now() - started ) / 1000 ).toFixed( 1 )} s` );
+assert.ok( quests?.id && quests.mainSteps > 0, 'no questline was generated' );
+console.log( `ok story ${quests.id}: ${quests.mainSteps} main steps, ${quests.sideJobs} side jobs, ${( ( performance.now() - started ) / 1000 ).toFixed( 1 )} s` );
 
-const { game } = await call( 'createGame', { cityId, interiorIds: instances.ids, questId: main.id } );
+const { game } = await call( 'createGame', { cityId, interiorIds: instances.ids, questId: quests.id } );
 const saved = await call( 'exportGame', game.id );
 assert.equal( saved.cityId, cityId );
 assert.ok( saved.questBundle, 'the game carries no quest bundle' );
-console.log( `ok game ${game.id}: ${instances.ids.length} interiors, quest ${main.id}` );
+console.log( `ok game ${game.id}: ${instances.ids.length} interiors, quest ${quests.id}` );
 console.log( `play: ${base}${game.playUrl ?? `/?mode=game&game=${game.id}&out=%2Fout%2Fgames%2F${game.id}`}` );
