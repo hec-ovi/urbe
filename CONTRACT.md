@@ -23,6 +23,7 @@ Status: 0.8.
 - `compose/check-previews.sh` verifies served pages, material data, street bindings, exterior API parity and every ready catalog world.
 - `node compose/check-catalog.mjs [baseUrl]` checks the current catalog, exact blueprint/Connections hashes, every archive part and served shell/floor assets without mutation. Default `http://localhost:5306`.
 - `node compose/check-launcher.mjs [small|medium|large] [baseUrl]` creates a fresh template city and free-play game, checks served shell files, then saves and resumes through the launcher API. Defaults: small and `http://localhost:5306`. Template sizes: Small 500 m, Medium 1000 m, Big 3000 m. Generated check cities and games remain in Engine's ignored catalog.
+- `node compose/shoot.mjs <play url> <out dir> <shots.json>` writes one PNG per shot of a running game, with no window: it waits for the world to be on screen, then walks the camera through the shots (`{ name, pos, yaw, pitch, wait }`). Add `&backend=webgl&quality=low` to the URL; headless Chromium cannot compile the city's WebGPU pipelines. Playwright resolves from this checkout or from `URBE_PLAYWRIGHT`.
 
 ## Errors and invariants
 
