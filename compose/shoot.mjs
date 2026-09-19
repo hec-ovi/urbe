@@ -4,8 +4,8 @@
  * `node compose/shoot.mjs <play url> <out dir> <shots.json>` loads the game in
  * a headless browser, waits for the world to be on screen, then walks the
  * camera through the shots and writes one PNG per shot. A shot is
- * `{ name, pos: [x, y, z], yaw, pitch, wait }`; every field but the name is
- * optional. Add `&backend=webgl&quality=low` to the URL: headless Chromium's
+ * `{ name, pos: [x, y, z], yaw, pitch, wait, js }`; every field but the name
+ * is optional, and `js` runs in the page before the shot. Add `&backend=webgl&quality=low` to the URL: headless Chromium's
  * WebGPU cannot compile the city's pipelines.
  *
  * Playwright is resolved from here, or from the checkout `URBE_PLAYWRIGHT`
@@ -63,6 +63,14 @@ for ( const shot of shots ) {
 		if ( s.pitch !== undefined ) g.controller.pitch = s.pitch;
 		g.controller.update( 0 );
 	}, shot );
+
+	// A shot may also run its own line first: opening a panel, reading a value.
+	if ( shot.js ) {
+
+		const answer = await page.evaluate( shot.js );
+		if ( answer !== undefined ) console.log( `${shot.name} js:`, JSON.stringify( answer ).slice( 0, 700 ) );
+
+	}
 	await page.waitForTimeout( shot.wait ?? 6000 );
 	const info = await page.evaluate( () => {
 		const g = window.urbe;
