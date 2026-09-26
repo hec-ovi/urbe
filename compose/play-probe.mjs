@@ -46,10 +46,13 @@
  * not finish is completed by the probe's fast-forward; both are recorded.
  * Each scene a step stages is visited, checked and screenshot as scene does.
  * ui opens a conversation with the main story's first person when it opens
- * with a talk, else with the nearest person, presses Escape in it, then
- * Escape on the street: the chat closes without the pause menu, the pause
- * menu comes up on the street with the clock and the crowd holding still, and
- * Resume plays on. It screenshots the chat, the street after it and the menu.
+ * with a talk, else with the nearest person, with the developer readouts off
+ * (details=off): a story talk opens on its scene, says why it matters and
+ * marks the reply that moves the story on. It presses Escape in it, N with
+ * the pointer free, then Escape on the street: the chat closes without the
+ * pause menu, N brings the menu, the menu comes up on the street with the
+ * clock and the crowd holding still, and Resume plays on. It screenshots the
+ * chat, the street after it and the menu.
  * Options:
  *   --out <dir>          screenshots and report.json; default a new folder under the OS temp dir, never inside this checkout
  *   --base <url>         Engine origin for a world id, default http://localhost:5306
@@ -458,10 +461,10 @@ const SCENARIOS = {
 	/**
 	 * The conversation and pause screens as a player meets them: the main
 	 * story's first person when it opens with a talk, else the nearest person;
-	 * Escape in that conversation, then Escape on the street, then Resume.
-	 * The probe holds the pointer lock a headless browser never grants, so it
-	 * stands in for the browser: the chat's release, the street's Escape and
-	 * the lock Resume asks for.
+	 * Escape in that conversation, N with the pointer free, then Escape on the
+	 * street, then Resume. The probe holds the pointer lock a headless browser
+	 * never grants, so it stands in for the browser: the chat's release, the
+	 * street's Escape and the lock Resume asks for.
 	 */
 	async ui( { probe, shot } ) {
 
@@ -477,11 +480,21 @@ const SCENARIOS = {
 		const shots = [ await shot( 'ui-chat' ) ];
 		const { chat } = await probe( 'state()' );
 		const header = await probe( 'game.view.dialog.element.querySelector( \'#conversation-name\' ).textContent' );
+		const story = reached?.offered ? {
+			stake: await probe( 'game.view.dialog.story.querySelector( \'.chat-quest-stake\' )?.textContent ?? null' ),
+			marked: await probe( 'game.view.dialog.choices.querySelectorAll( \'.chat-choice-commits\' ).length' ),
+			commits: quest.active.find( ( step ) => step.stepId === first.stepId )?.choices?.filter( ( choice ) => choice.completesStep ).length ?? 0
+		} : null;
+		const details = [ await probe( 'game.view.readout.element.hidden' ), await probe( 'game.view.stats.element.hidden' ) ];
 		await probe( RELEASE );
 		await probe( 'game.view.dialog.input.dispatchEvent( new KeyboardEvent( \'keydown\', { key: \'Escape\', code: \'Escape\', bubbles: true } ) )' );
 		await sleep( 500 );
 		const escaped = { conversation: ( await probe( 'state()' ) ).conversation, paused: ! await probe( 'game.view.pause.element.hidden' ) };
 		shots.push( await shot( 'ui-chat-escape' ) );
+		// With the pointer still free after the chat, N brings the pause menu as Escape does.
+		await probe( 'game.view.element.dispatchEvent( new KeyboardEvent( \'keydown\', { key: \'n\', code: \'KeyN\', bubbles: true } ) )' );
+		await sleep( 500 );
+		const menuKey = ! await probe( 'game.view.pause.element.hidden' );
 		await probe( GRANT );
 
 		await probe( RELEASE );
@@ -504,15 +517,22 @@ const SCENARIOS = {
 		const resumed = { paused: ! await probe( 'game.view.pause.element.hidden' ), seconds: await probe( CLOCK ) };
 		checks.push(
 			check( 'the chat names who is talking', header === conversation.name, { header, name: conversation.name } ),
+			...( story ? [
+				check( 'a story talk opens on its scene, then the person speaks', chat.lines[ 0 ]?.from === 'scene' && chat.lines[ 1 ]?.from === 'npc', chat.lines.slice( 0, 2 ) ),
+				check( 'the story says why the talk matters, not to talk to the person already talked to', Boolean( story.stake ) && ! chat.story?.objective, { story: chat.story, stake: story.stake } ),
+				check( 'the reply that moves the story on is marked', story.commits > 0 && story.marked === story.commits, story )
+			] : [] ),
+			check( 'the developer readouts are off', details.every( Boolean ), { readout: details[ 0 ], stats: details[ 1 ] } ),
 			check( 'Escape in a conversation closes it', escaped.conversation === null, escaped ),
 			check( 'Escape in a conversation does not pause', ! escaped.paused, escaped ),
+			check( 'N with the pointer free pauses', menuKey ),
 			check( 'Escape on the street pauses', paused ),
 			check( 'the clock stands still while paused', after === before, { before, after } ),
 			check( 'the crowd stands still while paused', moved.length === 0, { moved: moved.map( ( person ) => person.id ) } ),
 			check( 'Resume plays on', ! resumed.paused && resumed.seconds > after, resumed )
 		);
 
-		return { checks, shots, data: { conversation, chat, escaped, paused: { before, after }, resumed } };
+		return { checks, shots, data: { conversation, chat, story, escaped, menuKey, paused: { before, after }, resumed } };
 
 	}
 
@@ -661,6 +681,8 @@ function playUrl( { target, base, crowd, backend, scenarios } ) {
 	query.set( 'automation', '1' );
 	if ( ! query.has( 'crowd' ) ) query.set( 'crowd', String( crowd ) );
 	if ( ! scenarios.includes( 'voice' ) && ! query.has( 'voice' ) ) query.set( 'voice', 'off' );
+	// The ui scenario sees the screen as a player does, without the developer readouts.
+	if ( scenarios.includes( 'ui' ) && ! query.has( 'details' ) ) query.set( 'details', 'off' );
 	if ( backend === 'webgl' && ! query.has( 'backend' ) ) {
 
 		query.set( 'backend', 'webgl' );
@@ -1007,8 +1029,8 @@ const PLAY = {
 		record.checks.push(
 			check( 'its person stands there and E reaches them', reached.offered, reached ),
 			check( 'E opens a conversation with them', Boolean( conversation ) && conversation.npcId === step.cast[ 0 ]?.npcId, conversation ),
-			check( 'the story topic and its replies load', chat.story?.objective === step.text && chat.choices.some( ( choice ) => choice.text === commit?.text && ! choice.disabled ),
-				{ story: chat.story, choices: chat.choices, status: chat.status } ),
+			check( 'the story topic opens on its scene and its replies load', Boolean( chat.story ) && chat.lines[ 0 ]?.from === 'scene' && chat.choices.some( ( choice ) => choice.text === commit?.text && ! choice.disabled ),
+				{ story: chat.story, first: chat.lines[ 0 ], choices: chat.choices, status: chat.status } ),
 			check( 'the committing reply is taken', Boolean( chosen?.clicked ), chosen && { status: chosen.chat.status, lines: chosen.chat.lines.slice( - 2 ) } )
 		);
 
