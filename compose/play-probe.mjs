@@ -19,7 +19,7 @@
  * the pipe closes, however this process ends. SIGINT, SIGTERM and SIGHUP also
  * write the report and remove the browser's profile first.
  *
- * Scenarios: talk and chat (the default), voice, follow, lead. voice speaks a
+ * Scenarios: talk and chat (the default), voice, follow, lead, scene. voice speaks a
  * person's first line and the reply to a chat line through the engine's Voice
  * box and page audio (muted); it needs the Voice box running behind the engine.
  * follow asks the nearest people with the chat's 'Come with me' until one comes
@@ -27,6 +27,9 @@
  * 'You can go now'. lead asks for the nearest place someone offers to show,
  * walks behind them on their own path until the talk about the place opens by
  * itself, and leaves it; both then watch the person go back to their day.
+ * scene stands the player at the edge of each staged quest scene, or the one
+ * --scene names, and screenshots it once it stands; a game with no scenery,
+ * or none staged, has nothing to play there.
  * Options:
  *   --out <dir>          screenshots and report.json; default a new folder under the OS temp dir, never inside this checkout
  *   --base <url>         Engine origin for a world id, default http://localhost:5306
@@ -38,10 +41,11 @@
  *   --throwaway-engine   the engine serving the URL is a throwaway one nobody plays; --talk live on a game's out
  *                        (/out/games) needs it
  *   --line <text>        the chat scenario's line
+ *   --scene <id>         the scene scenario's scene; default every staged one
  *   --crowd <n>          default 120
  *   --timeout <seconds>  load limit, default 600
  *
- * Exit status: 0 every scenario passed; 1 a check failed or a scenario errored;
+ * Exit status: 0 every scenario passed or had nothing to play; 1 a check failed or a scenario errored;
  * 2 the game never became playable; 128 plus the signal's
  * number when a signal stopped the run.
  */
@@ -89,6 +93,8 @@ const LEAD_WAIT_MS = 480000;
 const FOLLOW_NEAR = 2.5;
 /** Continuity modes of somebody on their way back into their day, or in it. */
 const BACK_TO_DAY = [ 'resuming', 'schedule' ];
+/** How long a visited scene may take to stand: an indoor one waits for its floor to load first. */
+const SCENE_WAIT_MS = 30000;
 /** How many of the nearest people the talk scenario walks up to: hair colours near the pack's grey hide a bug in one sample. */
 const TALKS = 6;
 /** Conversations the talk scenario needs before its checks count. */
@@ -301,6 +307,41 @@ const SCENARIOS = {
 
 		return { checks, shots, data: { asked, trailed, requests, lines: spoken.chat.lines, person } };
 
+	},
+
+	/**
+	 * Visits each staged quest scene, or the one --scene names: stands the
+	 * player at the edge of its frame, waits for it to stand around them and
+	 * screenshots it. No scene may have failed.
+	 */
+	async scene( { probe, shot, options } ) {
+
+		const scenes = await probe( 'scenes()' );
+		if ( ! scenes.length ) return { skipped: 'no scenery in this game' };
+		const failed = scenes.filter( ( scene ) => scene.failed );
+		const visiting = scenes.filter( ( scene ) => options.scene ? scene.sceneId === options.scene : scene.status === 'staged' && ! scene.failed );
+		const checks = [ check( 'no quest scene failed', failed.length === 0, failed.map( ( { sceneId, failed: code } ) => ( { sceneId, code } ) ) ) ];
+		if ( options.scene ) checks.push( check( `the game has scene ${options.scene}`, visiting.length > 0, { scenes: scenes.map( ( scene ) => scene.sceneId ) } ) );
+		else if ( ! visiting.length && ! failed.length ) return { skipped: 'no quest scene is staged', data: { scenes } };
+		const shots = [];
+		const visits = [];
+		for ( const scene of visiting ) {
+
+			const visit = await probe( `visitScene(${JSON.stringify( scene.sceneId )}, { timeoutMs: ${SCENE_WAIT_MS} })` );
+			await sleep( 800 );
+			shots.push( await shot( `scene-${scene.sceneId.replace( /[^\w.-]+/g, '_' )}` ) );
+			visits.push( { sceneId: scene.sceneId, ...visit } );
+			const missing = scene.elements.filter( ( entityId ) => ! visit.shown.includes( entityId ) );
+			checks.push(
+				check( `the player stands at the edge of ${scene.sceneId}`, visit.placed, { status: scene.status, frame: scene.frame } ),
+				check( `${scene.sceneId} stands around the player`, visit.standing, { ms: visit.ms } ),
+				check( `every element of ${scene.sceneId} shows`, visit.standing && missing.length === 0, { elements: scene.elements, missing } )
+			);
+
+		}
+
+		return { checks, shots, data: { scenes, visits } };
+
 	}
 
 };
@@ -385,10 +426,10 @@ async function play( session, url, out, options, report ) {
 
 		const started = Date.now();
 		const result = await SCENARIOS[ name ]( context ).catch( ( error ) => ( { error: error.message } ) );
-		const outcome = result.error ? 'error' : result.checks?.length && result.checks.every( ( item ) => item.ok ) ? 'pass' : 'fail';
-		if ( outcome !== 'pass' ) status = 1;
+		const outcome = result.error ? 'error' : result.skipped ? 'skip' : result.checks?.length && result.checks.every( ( item ) => item.ok ) ? 'pass' : 'fail';
+		if ( outcome === 'error' || outcome === 'fail' ) status = 1;
 		report.scenarios.push( { name, status: outcome, seconds: ( Date.now() - started ) / 1000, ...result } );
-		console.log( `${name}: ${outcome}${result.error ? ` (${result.error})` : ''}` );
+		console.log( `${name}: ${outcome}${result.error || result.skipped ? ` (${result.error ?? result.skipped})` : ''}` );
 		for ( const item of result.checks ?? [] ) if ( ! item.ok ) console.log( `  failed: ${item.name} ${JSON.stringify( item.detail ?? {} )}` );
 
 	}
@@ -403,7 +444,7 @@ function parse( argv ) {
 		out: { type: 'string' }, base: { type: 'string', default: 'http://localhost:5306' },
 		browser: { type: 'string' }, backend: { type: 'string', default: 'webgl' },
 		talk: { type: 'string', default: 'stub' }, 'throwaway-engine': { type: 'boolean', default: false },
-		line: { type: 'string', default: 'Hi. What do you do around here?' },
+		line: { type: 'string', default: 'Hi. What do you do around here?' }, scene: { type: 'string' },
 		crowd: { type: 'string', default: '120' }, timeout: { type: 'string', default: '600' }
 	} } );
 	const [ target, ...named ] = positionals;
@@ -419,7 +460,7 @@ function parse( argv ) {
 	].filter( Boolean );
 	if ( problems.length ) {
 
-		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [voice] [follow] [lead] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--crowd n] [--timeout seconds]` );
+		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [voice] [follow] [lead] [scene] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--crowd n] [--timeout seconds]` );
 		process.exit( 2 );
 
 	}
