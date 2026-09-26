@@ -41,8 +41,6 @@ x-engine-volumes: &engine-volumes
   - ./interior:/work/interior:ro
   - interior_modules:/work/interior/node_modules:ro
   - ./simulation:/work/simulation:ro
-  - ./naming:/work/naming:ro
-  - naming_modules:/work/naming/node_modules:ro
   - ./materials/themes:/work/materials/themes:ro
   - ./materials/bindings:/work/materials/bindings:ro
   - ./materials/schema:/work/materials/schema:ro
@@ -164,36 +162,14 @@ services:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5305/testbed/"]
 
-  naming:
-    <<: *box
-    working_dir: /work/naming
-    # Installs and compiles the naming pass; Engine runs its `npm run world` CLI in place when
-    # a themed city is created. Healthy once the build exists.
-    environment:
-      <<: *user
-    command: ["sh", "-c", "npm run build && touch /tmp/urbe-naming-ready && exec sleep infinity"]
-    volumes:
-      - *install-cache
-      - ./compose/box-start.sh:/work/box-start.sh:ro
-      - ./naming:/work/naming
-      - naming_modules:/work/naming/node_modules
-    healthcheck:
-      <<: *healthcheck
-      test: ["CMD", "test", "-f", "/tmp/urbe-naming-ready"]
-
   quests:
     <<: *box
     working_dir: /work/quests
     # `npm run watch` compiles the library to dist/ (the engine's talk route imports it) and
-    # keeps it current; healthy once the build exists. Story authoring runs here against the
-    # machine's OpenAI-compatible model server (LLM_BASE_URL on the host, default port 8080).
+    # keeps it current; healthy once the build exists. Engine replays stories with its
+    # materialize CLI in place.
     environment:
       <<: *user
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8080/v1}
-      LLM_MODEL: ${LLM_MODEL:-}
-      LLM_API_KEY: ${LLM_API_KEY:-}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     command: ["/work/quests-start.sh"]
     volumes:
       - *install-cache
@@ -212,9 +188,9 @@ services:
     # interior source with their installed dependencies, the quests and simulation builds,
     # and the materials theme database served under /materials/. The CC0 character,
     # animation and vehicle packs come from the machine's model store (URBE_MODELS_DIR on
-    # the host, default ~/models/quaternius) served under /models/. NPC dialog, city names
-    # (the naming CLI) and written stories (the quests author CLI) run on the machine's
-    # OpenAI-compatible model server (LLM_BASE_URL on the host, default port 8080).
+    # the host, default ~/models/quaternius) served under /models/. NPC dialog runs on the
+    # machine's OpenAI-compatible model server (LLM_BASE_URL on the host, default port 8080);
+    # creation asks no model.
     # NPC speech goes to the voice service when its profile runs (VOICE_BASE_URL); Engine
     # starts without it.
     environment:
@@ -243,8 +219,6 @@ services:
       simulation:
         condition: service_healthy
       quests:
-        condition: service_healthy
-      naming:
         condition: service_healthy
     volumes: *engine-volumes
     healthcheck:
@@ -322,7 +296,6 @@ volumes:
   interior_modules:
   simulation_modules:
   quests_modules:
-  naming_modules:
   engine_modules:
   materials_modules:
   voice_data:

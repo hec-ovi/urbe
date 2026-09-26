@@ -13,7 +13,7 @@ The [stage reader](viewer/CONTRACT.md) is a static dark HTML page with one Markd
 - [interior](../interior/CONTRACT.md): architecture-specific interior recipes and shared room modules; matching floors reuse layouts, while tapered or changing floors carry their own. Inputs: [request](../interior/schemas/request.schema.json). Outputs: [building](../interior/schemas/building.schema.json), [layout](../interior/schemas/floor-placement.schema.json), [modules](../interior/schemas/modules.schema.json). Depends on exterior, materials.
 - [materials](../materials/CONTRACT.md): themed PBR maps, variants, water surfaces, fitted decals and their schema-checked database. Inputs/outputs: [material entry](../materials/schema/material-entry.schema.json). Depends on Atlas hydrology keys and street-construction role data; no Atlas runtime import.
 - [simulation](../simulation/CONTRACT.md): deterministic population identities, homes, jobs, routines, continuity and saves. Inputs: [simulation input](../simulation/src/schemas/input.ts). Depends on atlas, connections, interior, naming.
-- [naming](../naming/CONTRACT.md): themed place names, NPC type prompts, name pools and business exports. Inputs: [world](../naming/schema/world-state.schema.json). Outputs: [named world](../naming/schema/named-world.schema.json). Depends on atlas, optional simulation statistics, materials.
+- [naming](../naming/CONTRACT.md): themed place names, NPC type prompts, name pools and business exports, authored outside the stack. Inputs: [world](../naming/schema/world-state.schema.json). Outputs: [named world](../naming/schema/named-world.schema.json). Depends on atlas, optional simulation statistics, materials.
 - [quests](../quests/CONTRACT.md): two-stage story and gameplay authoring, typed flows, dialog context and engine handoff bundles. Inputs: [handoff](../quests/handoff/schema/handoff-input.schema.json). Depends on atlas world input, naming, simulation, engine investigation and mission-asset contracts.
 - [voice](../voice/CONTRACT.md): Maya1 NPC speech: one deterministic voice per NPC from its facts, streamed 24 kHz WAV, a byte-capped cache and one render at a time on the GPU. Inputs: [speak request](../voice/schema/speak-request.schema.json), [speaker](../voice/schema/speaker.schema.json), [prefetch](../voice/schema/prefetch-request.schema.json). Outputs: `audio/wav`, [design](../voice/schema/design-response.schema.json), [errors](../voice/schema/error.schema.json). Depends on a llama.cpp server holding the Maya1 GGUF, over HTTP; no sibling boxes.
 - [engine](../engine/CONTRACT.md): city assembly and first-person play. Ordinary parcels become Exterior placement tables; landmarks keep unique shells. Inputs: [launcher](../engine/src/server/schema/launcher-request.schema.json). Outputs: [world manifest](../engine/src/assembly/schema/world-manifest.schema.json), [kit placements](../engine/src/assembly/kit/kit-placements.schema.json). Depends on every sibling contract.
@@ -26,7 +26,7 @@ The [stage reader](viewer/CONTRACT.md) is a static dark HTML page with one Markd
 
 `exterior -> connections/rooftop-spans -> engine`
 
-`atlas -> naming -> engine assembly` (a themed city is named before it is built)
+`atlas plan -> naming -> engine assembly` (an author names the plan before it is built)
 
 `atlas -> naming -> simulation -> quests -> engine`
 
@@ -49,8 +49,8 @@ Compose prepares Streets before Engine starts; Engine reads its source, installe
 
 Engine serves stable play sessions through Compose and native `npm run play`; restart applies completed code changes. Startup preserves catalogs. `compose/check-catalog.mjs` verifies their published assets and complete archive part hashes with bounded reads.
 
-Engine front door: choose Small, Medium or Big, then Next. Completed cities support free play immediately, with interiors and quests optional. Saved games resume their last confirmed player state. Each creation stage runs as an Engine creation job. A city `theme` runs Naming's CLI between Atlas and assembly; a named city, or a story brief, has Quests' `npm run author` write the story through the model server against the opened interiors, in the step kinds Engine plays and with the scenery it stands.
+Engine front door: choose Small, Medium or Big, then Next. Completed cities support free play immediately, with interiors and quests optional. Saved games resume their last confirmed player state. Each creation stage runs as an Engine creation job, and creation asks no model. A named story game is authored outside the stack: Engine plans the city, an author agent names the plan with the Naming pipeline, Engine builds the named plan and opens interiors, the author writes a Quests recording against them, and Engine replays it in the step kinds it plays and with the scenery it stands. Only NPC dialogue calls a language model at runtime.
 
-`compose/check-launcher.mjs` verifies template creation, complete served shells, free play and save/resume through Engine's launcher contract. `compose/check-game.mjs` makes one themed story game end to end and checks its shipped bundle.
+`compose/check-launcher.mjs` verifies template creation, complete served shells, free play and save/resume through Engine's launcher contract. `compose/check-game.mjs` makes one story game end to end from a pre-named plan and a pre-authored recording and checks its shipped bundle.
 
 Agent completion follows the [fresh-city rebuild rule](../README.md#working-on-a-box): serialized cleanup, one generated city with current requested settings, validated interiors and an exact game URL.

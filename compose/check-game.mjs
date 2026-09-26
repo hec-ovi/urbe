@@ -1,31 +1,38 @@
 #!/usr/bin/env node
 /**
- * The whole front door on one new game: a themed city named and built, its
- * interiors opened, a story written through the model server against them,
- * and the game made of it. Every stage runs as an Engine creation job; the
- * check prints each stage's seconds and the play URL, and asserts that the
- * shipped quest bundle agrees with itself and with the world.
+ * The whole creation flow on one new game, with names and a story authored
+ * outside the engine: a city planned, built from the plan as an author named
+ * it, its interiors opened, a pre-authored Quests recording imported against
+ * them, and the game made of it. Every stage runs as an Engine creation job;
+ * no stage asks a model. The check prints each stage's seconds and the play
+ * URL, and asserts that the shipped quest bundle agrees with itself and with
+ * the world.
  *
- * node compose/check-game.mjs <small|medium|large> [baseUrl] --theme "<city character>" --brief "<story premise>"
- *   [--interiors 9] [--side-jobs 3]
+ * node compose/check-game.mjs <small|medium|large> [baseUrl] --recording <dir>
+ *   [--named <dir> --seed <seed>] [--name <city name>] [--interiors 9] [--side-jobs 3]
+ *
+ * --recording is a Quests recording directory (recording.json). --named holds
+ * the plan as the Naming box names it, blueprint.named.json and npc-types.json,
+ * named from the plan Atlas makes of <size> and --seed. Both are paths Engine
+ * resolves against its checkout, e.g. ../quests/creation/samples/urbe-small.
  */
 import assert from 'node:assert/strict';
 import { parseArgs } from 'node:util';
 import { launcher } from './launcher.mjs';
 
-const USAGE = 'usage: check-game.mjs <small|medium|large> [baseUrl] --theme "<city character>" --brief "<story premise>" [--interiors 9] [--side-jobs 3]';
+const USAGE = 'usage: check-game.mjs <small|medium|large> [baseUrl] --recording <dir> [--named <dir> --seed <seed>] [--name <city name>] [--interiors 9] [--side-jobs 3]';
 const { values, positionals } = parseArgs( {
 	allowPositionals: true,
 	options: {
-		theme: { type: 'string' }, brief: { type: 'string' },
+		recording: { type: 'string' }, named: { type: 'string' }, seed: { type: 'string' }, name: { type: 'string' },
 		interiors: { type: 'string', default: '9' }, 'side-jobs': { type: 'string', default: '3' }
 	}
 } );
 const [ size, base = 'http://localhost:5306' ] = positionals;
-assert.ok( [ 'small', 'medium', 'large' ].includes( size ) && values.theme?.trim() && values.brief?.trim(), USAGE );
+assert.ok( [ 'small', 'medium', 'large' ].includes( size ) && values.recording && ( ! values.named || values.seed ), USAGE );
 const interiors = Number( values.interiors );
 const sideJobs = Number( values[ 'side-jobs' ] );
-const theme = values.theme.trim();
+const named = values.named ? { blueprint: `${values.named}/blueprint.named.json`, types: `${values.named}/npc-types.json` } : null;
 const api = launcher( base );
 const seconds = {};
 
@@ -47,31 +54,46 @@ async function stage( name, method, input ) {
 
 }
 
-const { city } = await stage( 'city', 'generateCity', { size, theme } );
+const { plan } = await stage( 'plan', 'planCity', {
+	size, ...( values.seed ? { seed: values.seed } : {} ), ...( values.name ? { name: values.name } : {} )
+} );
+assert.equal( plan.size, size );
+console.log( `ok plan ${plan.id}: seed ${plan.seed}, ${Object.values( plan.stats.parcelCounts ).reduce( ( sum, count ) => sum + count, 0 )} parcels, `
+	+ `population ${plan.stats.population}, ${seconds.plan.toFixed( 1 )} s` );
+
+const { city } = await stage( 'build', 'buildCity', { cityId: plan.id, ...( named ? { named } : {} ) } );
 const cityRoot = `/out/cities/${city.id}`;
 const cityManifest = await api.json( `${cityRoot}/manifest.json` );
-assert.equal( cityManifest.named, true, 'the city is not named' );
-assert.equal( cityManifest.namingTheme, theme, 'the city is named in another theme' );
-const types = await api.json( `${cityRoot}/npc-types.json` );
-assert.ok( types.types?.length > 0, 'the named city carries no NPC types' );
 const atlas = await api.json( `${cityRoot}/blueprint.json` );
+assert.equal( atlas.meta.seed, plan.seed, 'the city is not built from its plan' );
+assert.equal( cityManifest.named, Boolean( named ), named ? 'the city is not named' : 'an unnamed plan came out named' );
+assert.equal( await api.served( `/out/plans/${plan.id}/plan.json` ), false, 'the plan stays after its city stands' );
+let types = null;
+if ( named ) {
+
+	assert.equal( cityManifest.namingTheme, atlas.meta.naming?.theme, 'the city is named in another theme' );
+	types = await api.json( `${cityRoot}/npc-types.json` );
+	assert.ok( types.types?.length > 0, 'the named city carries no NPC types' );
+
+}
 console.log( `ok city ${city.id}: ${city.buildingCount} buildings, ${atlas.parcels.filter( ( parcel ) => parcel.name ).length} named places, `
-	+ `${types.types.length} NPC types, ${seconds.city.toFixed( 1 )} s` );
+	+ `${types ? `${types.types.length} NPC types, theme "${cityManifest.namingTheme}"` : 'unnamed'}, ${seconds.build.toFixed( 1 )} s` );
 
 const { instances } = await stage( 'interiors', 'generateInstances', { cityId: city.id, mode: 'automatic', count: interiors, buildingIds: [] } );
 const typeOf = new Map( atlas.parcels.map( ( parcel ) => [ parcel.id, parcel.type ] ) );
 assert.ok( instances.ids.length >= 7, `only ${instances.ids.length} interiors opened` );
-assert.ok( instances.ids.some( ( id ) => typeOf.get( id ) === 'residential' ), 'no home opened for the story' );
+if ( named ) assert.ok( instances.ids.some( ( id ) => typeOf.get( id ) === 'residential' ), 'no home opened for the story' );
 console.log( `ok interiors ${instances.ids.length}: ${instances.ids.map( ( id ) => `${id} ${typeOf.get( id )}` ).join( ', ' )}, ${seconds.interiors.toFixed( 1 )} s` );
 
-const { quests } = await stage( 'story', 'generateQuests', { cityId: city.id, interiorIds: instances.ids, mainBrief: values.brief.trim(), sideJobs } );
+const { quests } = await stage( 'story', 'importStory', { cityId: city.id, recording: values.recording, sideJobs } );
 assert.ok( quests.mainSteps >= 6, `the main story has ${quests.mainSteps} steps` );
 const draft = `/out/drafts/${city.id}`;
 const recording = await api.json( `${draft}/story/recording.json` );
-const meta = await api.json( `${draft}/story/meta.json` );
-assert.ok( typeof recording.model === 'string' && recording.model.length > 0, 'the recording names no model' );
-console.log( `ok story ${quests.id}: ${quests.mainSteps} main steps, ${quests.sideJobs} side jobs, model ${recording.model}, `
-	+ `${( meta.blocked ?? [] ).length} blocked, ${seconds.story.toFixed( 1 )} s` );
+const leftOut = await api.json( `${draft}/story/left-out.json` );
+const replayed = await api.json( `${draft}/quests/questlines.meta.json` );
+console.log( `ok story ${quests.id}: ${quests.mainSteps} main steps, ${quests.sideJobs} side jobs, recorded by ${recording.model ?? 'an unnamed author'}, `
+	+ `${( replayed.blocked ?? [] ).length + leftOut.length} left out${[ ...( replayed.blocked ?? [] ), ...leftOut ].map( ( entry ) => `; ${entry.questlineId ?? entry.questId}: ${entry.reason}` ).join( '' )}, `
+	+ `${seconds.story.toFixed( 1 )} s` );
 
 const { game } = await stage( 'game', 'createGame', { cityId: city.id, interiorIds: instances.ids, questId: quests.id } );
 const root = `/out/games/${game.id}`;
@@ -103,7 +125,7 @@ for ( const binding of bundle.missionItemBindings ) assert.ok( assets.has( bindi
 for ( const spec of bundle.scenery ?? [] ) assert.ok( opened.has( spec.place.parcelId ), `scene ${spec.sceneId} stands in ${spec.place.parcelId}, which did not open` );
 assert.ok( bundle.hostCapabilities.scenery, 'the game declares no scenery' );
 const kinds = [ ...new Set( bundle.questlines.flatMap( ( definition ) => definition.steps.map( ( step ) => step.target.kind ) ) ) ];
-for ( const absent of [ 'story/recording.json', 'story/meta.json', 'quests/handoff-input.json', 'quests/all.questlines.json', 'draft.json' ] ) {
+for ( const absent of [ 'story/recording.json', 'story/left-out.json', 'quests/handoff-input.json', 'quests/all.questlines.json', 'draft.json' ] ) {
 
 	assert.equal( await api.served( `${root}/${absent}` ), false, `the game ships ${absent}` );
 

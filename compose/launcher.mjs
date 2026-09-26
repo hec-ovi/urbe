@@ -1,13 +1,15 @@
 /**
  * Engine's launcher API for the compose checks, over node:http with no
- * request timeout. Short calls post to /api/launcher; the four creation stages
- * run as creation jobs, submitted once and read every two seconds until they
- * settle, so a stage that runs for most of an hour holds no request open.
+ * request timeout. Short calls post to /api/launcher; the creation stages run
+ * as creation jobs, submitted once and read every two seconds until they
+ * settle, so a stage that builds for minutes holds no request open.
  */
 import { request as http } from 'node:http';
 import { request as https } from 'node:https';
 
-export const STAGES = new Set( [ 'generateCity', 'generateInstances', 'generateQuests', 'createGame' ] );
+export const STAGES = new Set( [
+	'planCity', 'buildCity', 'generateCity', 'generateInstances', 'generateQuests', 'importStory', 'createGame'
+] );
 
 export function launcher( base, { pollMs = 2000 } = {} ) {
 
