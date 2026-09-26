@@ -27,9 +27,11 @@
  * 'You can go now'. lead asks for the nearest place someone offers to show,
  * walks behind them on their own path until the talk about the place opens by
  * itself, and leaves it; both then watch the person go back to their day.
- * scene stands the player at the edge of each staged quest scene, or the one
- * --scene names, and screenshots it once it stands; a game with no scenery,
- * or none staged, has nothing to play there.
+ * scene stands the player at the edge of each quest scene the preview stages
+ * at quest start, or the one --scene names, and screenshots it once it stands.
+ * A preview starts its quests fresh, so a scene a later step stages stays
+ * dormant there and is listed as not visited; a game with no scenery, or none
+ * staged at quest start, has nothing to play there.
  * Options:
  *   --out <dir>          screenshots and report.json; default a new folder under the OS temp dir, never inside this checkout
  *   --base <url>         Engine origin for a world id, default http://localhost:5306
@@ -41,7 +43,7 @@
  *   --throwaway-engine   the engine serving the URL is a throwaway one nobody plays; --talk live on a game's out
  *                        (/out/games) needs it
  *   --line <text>        the chat scenario's line
- *   --scene <id>         the scene scenario's scene; default every staged one
+ *   --scene <id>         the scene scenario's scene; default every one staged at quest start
  *   --crowd <n>          default 120
  *   --timeout <seconds>  load limit, default 600
  *
@@ -310,19 +312,27 @@ const SCENARIOS = {
 	},
 
 	/**
-	 * Visits each staged quest scene, or the one --scene names: stands the
-	 * player at the edge of its frame, waits for it to stand around them and
-	 * screenshots it. No scene may have failed.
+	 * Visits each quest scene the preview stages at quest start, or the one
+	 * --scene names: stands the player at the edge of its frame, waits for it
+	 * to stand around them and screenshots it. No scene may have failed. The
+	 * preview starts its quests fresh, so a scene a later step stages is
+	 * dormant there and listed as not visited.
 	 */
 	async scene( { probe, shot, options } ) {
 
 		const scenes = await probe( 'scenes()' );
 		if ( ! scenes.length ) return { skipped: 'no scenery in this game' };
+		const named = options.scene ? scenes.filter( ( scene ) => scene.sceneId === options.scene ) : scenes;
 		const failed = scenes.filter( ( scene ) => scene.failed );
-		const visiting = scenes.filter( ( scene ) => options.scene ? scene.sceneId === options.scene : scene.status === 'staged' && ! scene.failed );
+		const visiting = named.filter( ( scene ) => scene.status === 'staged' && ! scene.failed );
+		const unvisited = named.filter( ( scene ) => scene.status !== 'staged' ).map( ( { sceneId, status } ) => `${sceneId} (${status})` );
 		const checks = [ check( 'no quest scene failed', failed.length === 0, failed.map( ( { sceneId, failed: code } ) => ( { sceneId, code } ) ) ) ];
-		if ( options.scene ) checks.push( check( `the game has scene ${options.scene}`, visiting.length > 0, { scenes: scenes.map( ( scene ) => scene.sceneId ) } ) );
-		else if ( ! visiting.length && ! failed.length ) return { skipped: 'no quest scene is staged', data: { scenes } };
+		if ( options.scene ) checks.push( check( `the game has scene ${options.scene}`, named.length > 0, { scenes: scenes.map( ( scene ) => scene.sceneId ) } ) );
+		if ( named.length && ! visiting.length && ! failed.length ) {
+
+			return { skipped: `no quest scene is staged at quest start, and the preview starts its quests fresh: ${unvisited.join( ', ' )} not visited`, data: { scenes } };
+
+		}
 		const shots = [];
 		const visits = [];
 		for ( const scene of visiting ) {
@@ -340,7 +350,7 @@ const SCENARIOS = {
 
 		}
 
-		return { checks, shots, data: { scenes, visits } };
+		return { checks, shots, data: { scenes, visits, unvisited } };
 
 	}
 
