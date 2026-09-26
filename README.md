@@ -42,7 +42,7 @@ docker compose up -d --build
 
 Engine starts at its launcher and retains the saved city and game catalogs. Create a world through a size template. Its play service keeps source watching off; `docker compose restart engine` applies completed code changes.
 
-Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine catalog and its served worlds, and the Quests build. `node compose/check-launcher.mjs [small|medium|large]` creates a template city, opens free play, then saves and resumes.
+Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine catalog and its served worlds, and the Quests build. `node compose/check-launcher.mjs [small|medium|large]` creates a template city, opens free play, then saves and resumes. `node compose/play-probe.mjs <world id>` walks up to a person and chats in that world's read-only preview in a headless Brave or Chrome, and writes screenshots and a report under the OS temp dir.
 
 The host gate requires Node.js 22 and npm. Compose dependency volumes do not populate host `node_modules`.
 
