@@ -32,7 +32,7 @@ git clone git@github.com:hec-ovi/urbe-quests.git quests
 git clone git@github.com:hec-ovi/urbe-engine.git engine
 ```
 
-Compose requires Docker Compose and Engine's character, animation and vehicle tree in `URBE_MODELS_DIR` (default `~/models/quaternius`). It does not download game assets. From the coordinator root, `(cd engine && npm run audit-character-assets)` verifies the game asset tree.
+Compose requires Docker Compose and Engine's character, animation and vehicle tree in `URBE_MODELS_DIR` (default `~/models/quaternius`). It does not download game assets. From the coordinator root, `(cd engine && npm run audit-character-assets)` verifies the game asset tree. [Game assets](#game-assets) lists every file and where to get it.
 
 ```
 docker compose up -d --build
@@ -56,6 +56,67 @@ done
 The gate builds Interior's portable core-feasibility entry, then runs those boxes' contract tests, type checks and production builds. Exterior reads that same compiled entry in Node and its browser preview.
 
 For cached, offline dependency installation, use `BOX_OFFLINE_INSTALL=1 docker compose up -d`. The shared npm cache persists in a Docker volume. Offline mode disables install lifecycle scripts and fails when a required package is absent from that cache. An unchanged lockfile retains its existing installation.
+
+### Game assets
+
+Engine play needs three downloaded model sets under `URBE_MODELS_DIR` (default `~/models/quaternius`). Downloads are kept in `resources/` beside the coordinator root (`../resources`), the path the character installer reads (`URBE_RESOURCES_DIR` overrides it).
+
+```
+~/models/quaternius/
+├── character-assets.json                  # written by the character installer
+├── universal-base-characters-source/      # 6 bodies, 32 hairstyles
+├── universal-animation-library-pro/       # UAL1.glb, 120 clips
+├── street-props/                          # 5 GLBs
+└── cars/                                  # 7 GLBs
+```
+
+**Characters and animations** (Quaternius, CC0, paid tiers)
+
+| Pack | Tier | Link | Needed file |
+| --- | --- | --- | --- |
+| Universal Base Characters | Source | [itch.io](https://quaternius.itch.io/universal-base-characters) | `Universal Base Characters[Source]/Engine Projects/Godot.zip`, `License_Source.txt` |
+| Universal Animation Library | Pro | [itch.io](https://quaternius.itch.io/universal-animation-library) | `Universal Animation Library[Pro]/Unreal-Godot/UAL1.glb`, `License.txt`, `README_Pro.txt` |
+
+The free Standard tiers do not work: Engine needs all six Source bodies and the Pro clips. Purchases stay downloadable from itch.io under My Purchases. Unzip both archives into `../resources/`, then:
+
+```sh
+(cd engine && node scripts/install-character-assets.mjs)
+(cd engine && npm run audit-character-assets)
+```
+
+**Street props** (Sketchfab, free, downloaded as GLB)
+
+| Id | File | Model | License |
+| --- | --- | --- | --- |
+| pine | `tree_3d_model_fir_spruce_pine.glb` | [Tree 3d model Fir Spruce Pine](https://sketchfab.com/3d-models/d774856e77f24daa852187d701a528f7) by Varleyhal | Free Standard |
+| maple | `maple_tree.glb` | [Maple Tree](https://sketchfab.com/3d-models/68bea58fd9a549a99cfa5d1c739c97a8) by JarlBllin89 | Free Standard |
+| bags | `animal_crossing_new_horizons_trash_bags.glb` | [Animal Crossing New Horizons Trash Bags](https://sketchfab.com/3d-models/5aeb7f10061f4964a3ad025a2dc8b180) by Bearfnf | Free Standard |
+| dumpster | `heavy_duty_dumpster.glb` | [Heavy Duty Dumpster](https://sketchfab.com/3d-models/7b80f3d0612541359c42dc0a79037051) by Potato_Pizza | Free Standard |
+| container | `container_low.glb` | [container low](https://sketchfab.com/3d-models/7a0afe670243423c931f575b06c9df4f) by cermo.gs.44 | Free Standard |
+
+Sketchfab names each GLB download after the model title, which matches the catalog file names. Engine scales trees to the catalog height, so another maple upload also fits. Put the five files in `../resources/street-props/`, then:
+
+```sh
+(cd engine && node src/game/props/install.mjs --source ../../resources/street-props)
+(cd engine && node src/game/props/install.mjs --check)
+```
+
+**Cars** (Quaternius [Cars pack](https://quaternius.com/packs/cars.html), CC0, free)
+
+The pack ships FBX, OBJ and Blend in a [Google Drive folder](https://drive.google.com/drive/folders/1fKlbDry77iY8KlEoxzUxIAZQL_XhzWlA). Engine loads GLB and keeps the `Headlights` and `TailLights` material names, so convert the FBX files with [FBX2glTF](https://www.npmjs.com/package/fbx2gltf) and rename `Cop` to `PoliceCar`:
+
+```sh
+npm i --prefix /tmp/fbx2gltf fbx2gltf   # Linux x64 converter binary
+BIN=/tmp/fbx2gltf/node_modules/fbx2gltf/bin/Linux/FBX2glTF
+chmod +x "$BIN"
+mkdir -p ~/models/quaternius/cars
+for f in NormalCar1 NormalCar2 SUV Taxi SportsCar SportsCar2 Cop; do
+  out=$f; [ "$f" = Cop ] && out=PoliceCar
+  "$BIN" --binary --input "../resources/cars/fbx/$f.fbx" --output ~/models/quaternius/cars/$out
+done
+```
+
+Anonymous Drive downloads can fail with "Quota exceeded"; downloading the FBX folder while signed in to Google works.
 
 ### Preview services and ports
 
