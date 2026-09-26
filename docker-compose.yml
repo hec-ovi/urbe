@@ -195,6 +195,8 @@ services:
       __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: engine
       LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8080/v1}
       LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-60000}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: ["npm", "run", "play", "--", "--host", "0.0.0.0", "--port", "5306", "--strictPort"]
