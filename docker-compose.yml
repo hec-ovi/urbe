@@ -217,7 +217,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-60000}
-      VOICE_BASE_URL: ${VOICE_BASE_URL:-http://voice:8080}
+      VOICE_BASE_URL: ${VOICE_BASE_URL-http://voice:8080}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: ["npm", "run", "play", "--", "--host", "0.0.0.0", "--port", "5306", "--strictPort"]
