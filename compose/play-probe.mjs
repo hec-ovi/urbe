@@ -13,7 +13,10 @@
  * runs, and anything else is refused.
  * Without the voice scenario the page gets `voice=off` unless the URL names
  * it, so the other scenarios put nothing on the voice GPU. The page's Vite
- * socket never opens, so it reports nothing to the dev server.
+ * socket never opens, so it reports nothing to the dev server. Every call on
+ * the page answers within a time limit, 60 s or its own wait plus that, so a
+ * page that stalls fails its scenario, with each call it made and what the
+ * page answered in the report's `trace`, instead of hanging the run.
  *
  * The browser takes its commands on this process's DevTools pipe and quits when
  * the pipe closes, however this process ends. SIGINT, SIGTERM and SIGHUP also
@@ -71,13 +74,15 @@ const FLAGS = [
 	`--window-size=${VIEWPORT.width},${VIEWPORT.height}`, '--remote-debugging-pipe'
 ];
 const STUB_REPLY = 'I stand in for the model, which nobody asked.';
-/** The stand-in answer for each talk endpoint: the whole reply, or the stream's events. */
-const TALK_STUBS = {
-	'/api/talk': stub( 'application/json', JSON.stringify( { reply: STUB_REPLY } ) ),
-	'/api/talk/stream': stub( 'application/x-ndjson', [
-		{ type: 'delta', text: STUB_REPLY }, { type: 'sentence', index: 0, text: STUB_REPLY }, { type: 'done', reply: STUB_REPLY }
-	].map( ( event ) => `${JSON.stringify( event )}\n` ).join( '' ) )
-};
+/** The talk route and the stand-in answer to it: the stream's events. */
+const TALK_PATH = '/api/talk/stream';
+const TALK_STUB = stub( 'application/x-ndjson', [
+	{ type: 'delta', text: STUB_REPLY }, { type: 'sentence', index: 0, text: STUB_REPLY }, { type: 'done', reply: STUB_REPLY }
+].map( ( event ) => `${JSON.stringify( event )}\n` ).join( '' ) );
+/** How long one call on the page may take, beyond any wait it makes in the page itself. */
+const PAGE_MS = 60000;
+/** How long a chat line may take to settle: the game gives up a reply that sends nothing for 90 s. */
+const SAY_MS = 120000;
 /** NPC speech routes, which pass only while the voice scenario runs: a line, a batch rendered ahead, and the cancel of a batch under its group. */
 const VOICE_PATHS = new Set( [ '/api/voice', '/api/voice/prefetch' ] );
 const VOICE_CANCEL = '/api/voice/prefetch/';
@@ -188,10 +193,10 @@ const SCENARIOS = {
 
 		checks.push( check( 'the person has an identity to talk as', Boolean( conversation.npcId && conversation.name ), conversation ) );
 		const sent = talk.length;
-		const said = await probe( `say(${JSON.stringify( options.line )})` );
+		const said = await probe( `say(${JSON.stringify( options.line )})`, SAY_MS );
 		const requests = talk.slice( sent );
 		checks.push(
-			check( 'the line reaches /api/talk', requests.length > 0, requests[ 0 ] ),
+			check( 'the line reaches /api/talk/stream', requests.length > 0, requests[ 0 ] ),
 			check( 'a reply shows', Boolean( said.reply ) && ( options.talk === 'live' || said.reply === STUB_REPLY ), { reply: said.reply } ),
 			check( 'the chat shows no error', ! said.error, { status: said.status } )
 		);
@@ -218,9 +223,9 @@ const SCENARIOS = {
 		const checks = [ check( 'a conversation with a person is open', Boolean( conversation?.npcId ), conversation ) ];
 		if ( ! conversation?.npcId ) return { checks };
 
-		const greeting = await probe( `voice({ played: 1, timeoutMs: ${VOICE_WAIT_MS} })` );
-		const said = await probe( `say(${JSON.stringify( options.line )})` );
-		const reply = await probe( `voice({ played: ${( greeting?.played ?? 0 ) + 1}, timeoutMs: ${VOICE_WAIT_MS} })` );
+		const greeting = await probe( `voice({ played: 1, timeoutMs: ${VOICE_WAIT_MS} })`, VOICE_WAIT_MS + PAGE_MS );
+		const said = await probe( `say(${JSON.stringify( options.line )})`, SAY_MS );
+		const reply = await probe( `voice({ played: ${( greeting?.played ?? 0 ) + 1}, timeoutMs: ${VOICE_WAIT_MS} })`, VOICE_WAIT_MS + PAGE_MS );
 		const { chat } = await probe( 'state()' );
 		const first = voice.find( ( request ) => request.path === '/api/voice' );
 		const prefetches = voice.filter( ( request ) => request.path === '/api/voice/prefetch' );
@@ -287,7 +292,7 @@ const SCENARIOS = {
 
 		const { npcId } = asked.companion;
 		const sent = talk.length;
-		const trailed = await probe( `trail(${JSON.stringify( npcId )}, { timeoutMs: ${LEAD_WAIT_MS} })` );
+		const trailed = await probe( `trail(${JSON.stringify( npcId )}, { timeoutMs: ${LEAD_WAIT_MS} })`, LEAD_WAIT_MS + PAGE_MS );
 		const spoken = await until( () => probe( 'state()' ), ( state ) => state.chat.lines.some( ( line ) => line.from === 'npc' ) || ! state.chat.sending && state.chat.lines.length > 0, 10000 );
 		const requests = talk.slice( sent );
 		const shots = [ await shot( 'lead-arrival' ) ];
@@ -337,7 +342,7 @@ const SCENARIOS = {
 		const visits = [];
 		for ( const scene of visiting ) {
 
-			const visit = await probe( `visitScene(${JSON.stringify( scene.sceneId )}, { timeoutMs: ${SCENE_WAIT_MS} })` );
+			const visit = await probe( `visitScene(${JSON.stringify( scene.sceneId )}, { timeoutMs: ${SCENE_WAIT_MS} })`, SCENE_WAIT_MS + PAGE_MS );
 			await sleep( 800 );
 			shots.push( await shot( `scene-${scene.sceneId.replace( /[^\w.-]+/g, '_' )}` ) );
 			visits.push( { sceneId: scene.sceneId, ...visit } );
@@ -423,7 +428,6 @@ async function play( session, url, out, options, report ) {
 
 	const context = {
 		options, talk: report.talkRequests, voice: report.voiceRequests,
-		probe: ( call ) => page.evaluate( `window.urbe.automation.${call}` ),
 		shot: async ( name ) => {
 
 			await page.screenshot( join( out, `${name}.png` ) );
@@ -435,7 +439,8 @@ async function play( session, url, out, options, report ) {
 	for ( const name of options.scenarios ) {
 
 		const started = Date.now();
-		const result = await SCENARIOS[ name ]( context ).catch( ( error ) => ( { error: error.message } ) );
+		const trace = [];
+		const result = await SCENARIOS[ name ]( { ...context, probe: prober( page, trace ) } ).catch( ( error ) => ( { error: error.message, trace } ) );
 		const outcome = result.error ? 'error' : result.skipped ? 'skip' : result.checks?.length && result.checks.every( ( item ) => item.ok ) ? 'pass' : 'fail';
 		if ( outcome === 'error' || outcome === 'fail' ) status = 1;
 		report.scenarios.push( { name, status: outcome, seconds: ( Date.now() - started ) / 1000, ...result } );
@@ -571,8 +576,7 @@ function watch( page, report, { talk, scenarios } ) {
 
 		const { method } = request;
 		const path = new URL( request.url ).pathname;
-		const answer = method === 'POST' ? TALK_STUBS[ path ] : undefined;
-		if ( answer ) {
+		if ( method === 'POST' && path === TALK_PATH ) {
 
 			const entry = { at: at(), path, ...talkRequest( request ) };
 			report.talkRequests.push( entry );
@@ -583,7 +587,7 @@ function watch( page, report, { talk, scenarios } ) {
 
 			}
 			Object.assign( entry, { status: 200, stubbed: true } );
-			return page.send( 'Fetch.fulfillRequest', { requestId, responseCode: 200, ...answer } );
+			return page.send( 'Fetch.fulfillRequest', { requestId, responseCode: 200, ...TALK_STUB } );
 
 		}
 		if ( speaks && ( method === 'POST' && VOICE_PATHS.has( path ) || method === 'DELETE' && path.startsWith( VOICE_CANCEL ) ) ) {
@@ -599,6 +603,37 @@ function watch( page, report, { talk, scenarios } ) {
 		return page.send( 'Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' } );
 
 	} );
+
+}
+
+/**
+ * A scenario's calls on the page's automation probe: each answers within
+ * `ms` or throws naming the call, and goes into `trace` with its seconds and
+ * the page's answer or the failure.
+ */
+function prober( page, trace ) {
+
+	return async ( call, ms = PAGE_MS ) => {
+
+		const entry = { call };
+		trace.push( entry );
+		const started = Date.now();
+		try {
+
+			return entry.value = await page.evaluate( `window.urbe.automation.${call}`, ms );
+
+		} catch ( error ) {
+
+			entry.error = error.message;
+			throw new Error( `${call}: ${error.message}` );
+
+		} finally {
+
+			entry.seconds = ( Date.now() - started ) / 1000;
+
+		}
+
+	};
 
 }
 
@@ -903,9 +938,10 @@ class Page {
 
 	}
 
-	async evaluate( expression ) {
+	/** The expression's value, once its promise settles within `ms`. */
+	async evaluate( expression, ms = PAGE_MS ) {
 
-		const { result, exceptionDetails } = await this.send( 'Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true } );
+		const { result, exceptionDetails } = await within( this.send( 'Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true } ), ms );
 		if ( exceptionDetails ) throw new Error( String( exceptionDetails.exception?.description ?? exceptionDetails.text ).split( '\n' )[ 0 ] );
 
 		return result.value;
@@ -914,7 +950,7 @@ class Page {
 
 	async screenshot( path ) {
 
-		const { data } = await this.send( 'Page.captureScreenshot', { format: 'png' } );
+		const { data } = await within( this.send( 'Page.captureScreenshot', { format: 'png' } ), PAGE_MS );
 		writeFileSync( path, Buffer.from( data, 'base64' ) );
 
 	}
