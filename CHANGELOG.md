@@ -1,5 +1,7 @@
 # Changelog
 
+0.10: Compose runs Naming, built with no public port, and Engine reads it with its dependencies to name a themed city before it is built. The launcher checks run creation stages as Engine creation jobs over node:http with no request timeout, `compose/check-game.mjs` makes one themed story game through the model server and checks its shipped bundle, and `compose/check-catalog.mjs` checks kit placement records, empty lots and interiors as JSON layouts.
+
 0.9: Compose runs NPC speech under the `voice` profile: the Maya1 model server on 5309 and the Voice box on 5308, which Engine reaches at `VOICE_BASE_URL`. Quests receives the model server settings for story authoring. The gate runs Voice's test stage, and `compose/check-voice.mjs` measures one fresh line.
 
 0.8: Coordinator maps a kit city: Engine assembles Exterior pieces as placement tables, Streets publishes 8 m units, Interior shares modules and three layouts, Atlas plans rectangles with block templates, default city 3000 x 3000 m, launcher sizes Small 500, Medium 1000, Big 3000.

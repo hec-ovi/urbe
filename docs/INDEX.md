@@ -26,6 +26,8 @@ The [stage reader](viewer/CONTRACT.md) is a static dark HTML page with one Markd
 
 `exterior -> connections/rooftop-spans -> engine`
 
+`atlas -> naming -> engine assembly` (a themed city is named before it is built)
+
 `atlas -> naming -> simulation -> quests -> engine`
 
 `simulation speaker facts -> engine -> voice -> engine -> browser audio`
@@ -47,8 +49,8 @@ Compose prepares Streets before Engine starts; Engine reads its source, installe
 
 Engine serves stable play sessions through Compose and native `npm run play`; restart applies completed code changes. Startup preserves catalogs. `compose/check-catalog.mjs` verifies their published assets and complete archive part hashes with bounded reads.
 
-Engine front door: choose Small, Medium or Big, then Next. Completed cities support free play immediately, with interiors and quests optional. Saved games resume their last confirmed player state.
+Engine front door: choose Small, Medium or Big, then Next. Completed cities support free play immediately, with interiors and quests optional. Saved games resume their last confirmed player state. Each creation stage runs as an Engine creation job. A city `theme` runs Naming's CLI between Atlas and assembly; a named city, or a story brief, has Quests' `npm run author` write the story through the model server against the opened interiors, in the step kinds Engine plays and with the scenery it stands.
 
-`compose/check-launcher.mjs` verifies template creation, complete served shells, free play and save/resume through Engine's launcher contract.
+`compose/check-launcher.mjs` verifies template creation, complete served shells, free play and save/resume through Engine's launcher contract. `compose/check-game.mjs` makes one themed story game end to end and checks its shipped bundle.
 
 Agent completion follows the [fresh-city rebuild rule](../README.md#working-on-a-box): serialized cleanup, one generated city with current requested settings, validated interiors and an exact game URL.

@@ -55,7 +55,9 @@ for ( const [ kind, entries ] of [ [ 'cities', catalog.cities.filter( city => ci
 		const atlas = blueprint.reader ? {
 			meta: blueprint.reader.index.root.meta, parcels: await blueprint.reader.readCollection( '/parcels' )
 		} : blueprint.value;
-		assert.deepEqual( [ ...manifest.parcels ].sort(), atlas.parcels.map( parcel => parcel.id ).sort() );
+		// Every plan parcel stands, or is an empty lot a merge took, which nothing is fetched for.
+		const standing = atlas.parcels.map( parcel => parcel.id ).filter( id => manifest.sources?.[ id ] !== 'empty' );
+		assert.deepEqual( [ ...manifest.parcels ].sort(), standing.sort() );
 		assert.equal( manifest.atlasVersion, atlas.meta.version );
 		assert.equal( manifest.connections.blueprintSha256, blueprint.sha256 );
 		const connections = manifest.connections.encoding === 'archive'
@@ -66,18 +68,27 @@ for ( const [ kind, entries ] of [ [ 'cities', catalog.cities.filter( city => ci
 		assert.equal( source.meta.atlasSeed, atlas.meta.seed );
 		let files = 0;
 		await parallel( manifest.parcels, async id => {
-			await asset( `${root}/${id}/${id}.blueprint.json`, 'application/json' );
-			await asset( `${root}/${id}/${id}.glb`, 'model/gltf-binary' ); files ++;
-			for ( const floor of manifest.floors?.[ id ] ?? [] ) {
-				await json( `${root}/${id}/interior/floors/${floor}.json` );
-				await asset( `${root}/${id}/interior/floors/${floor}.glb`, 'model/gltf-binary' ); files ++;
+			// A kit parcel stands on a shared plan and ships only the record naming it.
+			if ( manifest.sources?.[ id ] === 'kit' ) await asset( `${root}/${id}/${id}.placements.json`, 'application/json' );
+			else {
+				await asset( `${root}/${id}/${id}.blueprint.json`, 'application/json' );
+				await asset( `${root}/${id}/${id}.glb`, 'model/gltf-binary' ); files ++;
+			}
+			// A furnished building is JSON alone: its floors name the layouts it publishes,
+			// and its geometry is the shared module set.
+			if ( manifest.interiors.includes( id ) ) {
+				const { value: building } = await json( `${root}/${id}/interior/building.json` );
+				const tag = index => `${index < 0 ? '-' : ''}${String( Math.abs( index ) ).padStart( 3, '0' )}`;
+				assert.deepEqual( building.floors.map( floor => floor.index ).sort( ( a, b ) => a - b ).map( tag ), manifest.floors[ id ], `${id}: interior floors` );
+				await asset( `${root}/${id}/interior/npc.json`, 'application/json' );
+				for ( const file of new Set( Object.values( building.layouts ) ) ) await asset( `${root}/${id}/interior/${file}`, 'application/json' );
 			}
 		} );
 		if ( kind === 'games' ) {
 			const { value: game } = await json( root + '/game.json' );
 			assert.deepEqual( [ ...game.selectedInteriors ].sort(), [ ...manifest.interiors ].sort() );
 		}
-		console.log( `ok ${kind}/${entry.id}: ${manifest.parcels.length} shells, ${manifest.interiors.length} interiors, ${files} GLBs` );
+		console.log( `ok ${kind}/${entry.id}: ${manifest.parcels.length} buildings, ${manifest.interiors.length} interiors, ${files} shell GLBs` );
 	}
 }
 console.log( `ok catalog: ${catalog.cities.length} cities, ${catalog.games.length} games` );
