@@ -197,12 +197,14 @@ const SCENARIOS = {
 		const said = await probe( `say(${JSON.stringify( options.line )})` );
 		const reply = await probe( `voice({ played: ${( greeting?.played ?? 0 ) + 1}, timeoutMs: ${VOICE_WAIT_MS} })` );
 		const { chat } = await probe( 'state()' );
-		const [ first ] = voice;
+		const first = voice.find( ( request ) => request.path === '/api/voice' );
+		const prefetches = voice.filter( ( request ) => request.path === '/api/voice/prefetch' );
 		// DevTools reports a stream the page reads to its end as canceled, so a
 		// whole line is the page's own count: played, and none failed.
 		checks.push(
 			check( 'the game has its own voice and the engine offers it', greeting?.status === 'ok', greeting ),
 			check( 'the first line comes from /api/voice as audio', first?.status === 200 && first.type === 'audio/wav', first ),
+			check( 'lines rendered ahead are queued', prefetches.every( ( request ) => request.status === 202 ), prefetches ),
 			check( 'the first line plays to its end', greeting?.played >= 1, greeting ),
 			check( 'audio arrives past the WAV header', greeting?.bytes > 44, { bytes: greeting?.bytes } ),
 			check( 'the reply to a chat line plays to its end', Boolean( said.reply ) && reply?.played > greeting?.played, { reply: said.reply, played: reply?.played } ),
