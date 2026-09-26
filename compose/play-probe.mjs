@@ -22,7 +22,7 @@
  * the pipe closes, however this process ends. SIGINT, SIGTERM and SIGHUP also
  * write the report and remove the browser's profile first.
  *
- * Scenarios: talk and chat (the default), voice, follow, lead, scene. voice speaks a
+ * Scenarios: talk and chat (the default), voice, follow, lead, scene, story. voice speaks a
  * person's first line and the reply to a chat line through the engine's Voice
  * box and page audio (muted); it needs the Voice box running behind the engine.
  * follow asks the nearest people with the chat's 'Come with me' until one comes
@@ -33,8 +33,18 @@
  * scene stands the player at the edge of each quest scene the preview stages
  * at quest start, or the one --scene names, and screenshots it once it stands.
  * A preview starts its quests fresh, so a scene a later step stages stays
- * dormant there and is listed as not visited; a game with no scenery, or none
- * staged at quest start, has nothing to play there.
+ * dormant there and is listed as not visited, unless --advance-to first
+ * fast-forwards the story until that step is active; a game with no scenery,
+ * or none staged, has nothing to play there.
+ * story walks a questline, the main story unless --quest names another, from
+ * its first step to an ending. For each objective it checks that the place is
+ * one the world has and the walk graph reaches and that its people are alive,
+ * opens the step (waiting for its hour, standing at its venue) and does it as
+ * a player would: talks to its person, sees the story topic load and commits
+ * its reply, arrives, inspects a scene's evidence, walks an escort, or takes,
+ * delivers, works, listens or observes with E. A step the player's path does
+ * not finish is completed by the probe's fast-forward; both are recorded.
+ * Each scene a step stages is visited, checked and screenshot as scene does.
  * Options:
  *   --out <dir>          screenshots and report.json; default a new folder under the OS temp dir, never inside this checkout
  *   --base <url>         Engine origin for a world id, default http://localhost:5306
@@ -46,7 +56,9 @@
  *   --throwaway-engine   the engine serving the URL is a throwaway one nobody plays; --talk live on a game's out
  *                        (/out/games) needs it
  *   --line <text>        the chat scenario's line
- *   --scene <id>         the scene scenario's scene; default every one staged at quest start
+ *   --scene <id>         the scene scenario's scene; default every one staged
+ *   --advance-to <step>  the scene scenario first fast-forwards the story until this step is active
+ *   --quest <id>         the questline story walks and --advance-to advances; default the main story
  *   --crowd <n>          default 120
  *   --timeout <seconds>  load limit, default 600
  *
@@ -102,6 +114,13 @@ const FOLLOW_NEAR = 2.5;
 const BACK_TO_DAY = [ 'resuming', 'schedule' ];
 /** How long a visited scene may take to stand: an indoor one waits for its floor to load first. */
 const SCENE_WAIT_MS = 30000;
+/** How long a story step may take to open, and its people to come or its place to load. */
+const STEP_MS = 30000;
+/** How long an escort may walk: its route at a slow 0.8 m/s, a crowded headless frame rate included, plus a minute. */
+const ESCORT_PACE = 0.8;
+const ESCORT_SLACK_MS = 60000;
+/** A story longer than this many steps is walking in circles. */
+const MAX_STEPS = 120;
 /** How many of the nearest people the talk scenario walks up to: hair colours near the pack's grey hide a bug in one sample. */
 const TALKS = 6;
 /** Conversations the talk scenario needs before its checks count. */
@@ -325,6 +344,9 @@ const SCENARIOS = {
 	 */
 	async scene( { probe, shot, options } ) {
 
+		const advanced = options[ 'advance-to' ]
+			? await probe( `advance(${JSON.stringify( { questId: options.quest ?? null, toStepId: options[ 'advance-to' ], timeoutMs: STEP_MS } )})`, MAX_STEPS * STEP_MS )
+			: null;
 		const scenes = await probe( 'scenes()' );
 		if ( ! scenes.length ) return { skipped: 'no scenery in this game' };
 		const named = options.scene ? scenes.filter( ( scene ) => scene.sceneId === options.scene ) : scenes;
@@ -332,8 +354,14 @@ const SCENARIOS = {
 		const visiting = named.filter( ( scene ) => scene.status === 'staged' && ! scene.failed );
 		const unvisited = named.filter( ( scene ) => scene.status !== 'staged' ).map( ( { sceneId, status } ) => `${sceneId} (${status})` );
 		const checks = [ check( 'no quest scene failed', failed.length === 0, failed.map( ( { sceneId, failed: code } ) => ( { sceneId, code } ) ) ) ];
+		if ( advanced ) {
+
+			checks.push( check( `the story fast-forwards to ${options[ 'advance-to' ]}`, [ 'reached', 'passed' ].includes( advanced.stopped ),
+				{ stopped: advanced.stopped, refused: advanced.completed.filter( ( step ) => ! step.ok ) } ) );
+
+		}
 		if ( options.scene ) checks.push( check( `the game has scene ${options.scene}`, named.length > 0, { scenes: scenes.map( ( scene ) => scene.sceneId ) } ) );
-		if ( named.length && ! visiting.length && ! failed.length ) {
+		if ( named.length && ! visiting.length && ! failed.length && ! advanced ) {
 
 			return { skipped: `no quest scene is staged at quest start, and the preview starts its quests fresh: ${unvisited.join( ', ' )} not visited`, data: { scenes } };
 
@@ -342,20 +370,75 @@ const SCENARIOS = {
 		const visits = [];
 		for ( const scene of visiting ) {
 
-			const visit = await probe( `visitScene(${JSON.stringify( scene.sceneId )}, { timeoutMs: ${SCENE_WAIT_MS} })`, SCENE_WAIT_MS + PAGE_MS );
-			await sleep( 800 );
-			shots.push( await shot( `scene-${scene.sceneId.replace( /[^\w.-]+/g, '_' )}` ) );
-			visits.push( { sceneId: scene.sceneId, ...visit } );
-			const missing = scene.elements.filter( ( entityId ) => ! visit.shown.includes( entityId ) );
-			checks.push(
-				check( `the player stands at the edge of ${scene.sceneId}`, visit.placed, { status: scene.status, frame: scene.frame } ),
-				check( `${scene.sceneId} stands around the player`, visit.standing, { ms: visit.ms } ),
-				check( `every element of ${scene.sceneId} shows`, visit.standing && missing.length === 0, { elements: scene.elements, missing } )
-			);
+			const { checks: visited, ...visit } = await visitScene( probe, shot, scene );
+			shots.push( visit.shot );
+			visits.push( visit );
+			checks.push( ...visited );
 
 		}
 
-		return { checks, shots, data: { scenes, visits, unvisited } };
+		return { checks, shots, data: { advanced, scenes, visits, unvisited } };
+
+	},
+
+	/**
+	 * Walks a questline from its first step to an ending, doing each step as a
+	 * player would where the probe can and fast-forwarding it where that does
+	 * not finish it, and visits each scene a step stages. Each step's record
+	 * holds its place, route and people, what opened it, what the player's
+	 * path did and whether the fast-forward was needed.
+	 */
+	async story( { probe, shot, options } ) {
+
+		const start = await probe( `quest(${JSON.stringify( options.quest ?? null )})` );
+		if ( ! start ) return { skipped: 'no questline in this game' };
+		if ( start.state === 'blocked' ) return { checks: [ check( `${start.questId} is cast`, false, start ) ], data: { start } };
+		const { questId } = start;
+		const steps = [];
+		const visits = [];
+		const checks = [];
+		const shots = [];
+		let quest = start;
+		while ( ! quest.ending && quest.objective && steps.length < MAX_STEPS ) {
+
+			const { stepId } = quest.objective;
+			if ( steps.some( ( record ) => record.stepId === stepId ) ) break;
+			const record = await playStep( probe, questId, quest );
+			steps.push( record );
+			checks.push( ...record.checks.map( ( item ) => ( { ...item, name: `${stepId}: ${item.name}` } ) ) );
+			quest = await probe( `quest(${JSON.stringify( questId )})` );
+			console.log( `  ${stepId} ${record.kind}: ${record.via ? `done by ${record.via}` : 'not done'}${record.failed.length ? `; failed: ${record.failed.join( '; ' )}` : ''}` );
+			if ( ! record.via ) break;
+			const known = await probe( 'scenes()' );
+			for ( const scene of known.filter( ( each ) => each.questId === questId && ! visits.some( ( visit ) => visit.sceneId === each.sceneId ) ) ) {
+
+				if ( scene.failed ) {
+
+					visits.push( { sceneId: scene.sceneId, afterStep: stepId, failed: scene.failed } );
+					checks.push( check( `${scene.sceneId} stands`, false, { code: scene.failed } ) );
+
+				}
+				if ( scene.status !== 'staged' || scene.failed ) continue;
+				const { checks: visited, ...visit } = await visitScene( probe, shot, scene );
+				visits.push( { ...visit, afterStep: stepId } );
+				checks.push( ...visited );
+				shots.push( visit.shot );
+
+			}
+			// Standing in a scene may itself arrive where a later step sends the player.
+			quest = await probe( `quest(${JSON.stringify( questId )})` );
+			for ( const done of quest.completed.filter( ( id ) => ! steps.some( ( record ) => record.stepId === id ) ) ) {
+
+				steps.push( { stepId: done, via: 'scene visit', note: `completed while visiting the scenes staged after ${stepId}`, checks: [], failed: [] } );
+
+			}
+
+		}
+		if ( ( await probe( 'state()' ) ).conversation ) await probe( 'leave()' );
+		shots.push( await shot( 'story-end' ) );
+		checks.push( check( 'the story reaches an ending', Boolean( quest.ending ), { state: quest.state, objective: quest.objective, completed: quest.completed.length } ) );
+
+		return { checks, shots, data: { questId, ending: quest.ending, steps, visits, end: quest } };
 
 	}
 
@@ -460,6 +543,7 @@ function parse( argv ) {
 		browser: { type: 'string' }, backend: { type: 'string', default: 'webgl' },
 		talk: { type: 'string', default: 'stub' }, 'throwaway-engine': { type: 'boolean', default: false },
 		line: { type: 'string', default: 'Hi. What do you do around here?' }, scene: { type: 'string' },
+		'advance-to': { type: 'string' }, quest: { type: 'string' },
 		crowd: { type: 'string', default: '120' }, timeout: { type: 'string', default: '600' }
 	} } );
 	const [ target, ...named ] = positionals;
@@ -475,7 +559,7 @@ function parse( argv ) {
 	].filter( Boolean );
 	if ( problems.length ) {
 
-		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [voice] [follow] [lead] [scene] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--crowd n] [--timeout seconds]` );
+		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [voice] [follow] [lead] [scene] [story] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--advance-to step] [--quest id] [--crowd n] [--timeout seconds]` );
 		process.exit( 2 );
 
 	}
@@ -760,6 +844,168 @@ async function dismiss( probe, npcId ) {
 	return { conversation, acted, companion, person };
 
 }
+
+/**
+ * Stands the player at the edge of a staged scene, waits for it to stand,
+ * screenshots it and checks that it stands and every element shows.
+ */
+async function visitScene( probe, shot, scene ) {
+
+	const visit = await probe( `visitScene(${JSON.stringify( scene.sceneId )}, { timeoutMs: ${SCENE_WAIT_MS} })`, SCENE_WAIT_MS + PAGE_MS );
+	await sleep( 800 );
+	const missing = scene.elements.filter( ( entityId ) => ! visit.shown.includes( entityId ) );
+
+	return {
+		sceneId: scene.sceneId, place: scene.place, ...visit,
+		shot: await shot( `scene-${scene.sceneId.replace( /[^\w.-]+/g, '_' )}` ),
+		checks: [
+			check( `the player stands at the edge of ${scene.sceneId}`, visit.placed, { status: scene.status, frame: scene.frame } ),
+			check( `${scene.sceneId} stands around the player`, visit.standing, { ms: visit.ms } ),
+			check( `every element of ${scene.sceneId} shows`, visit.standing && missing.length === 0, { elements: scene.elements, missing } ),
+			...( scene.evidence === null ? [] : [ check( `the evidence of ${scene.sceneId} stands with it`, scene.evidence === 'staged', { evidence: scene.evidence } ) ] )
+		]
+	};
+
+}
+
+/**
+ * Plays the objective step of `quest`: checks its place and people, opens it,
+ * does it on the player's own path and, when that leaves it open, completes it
+ * with the fast-forward. The step's record; `via` is `player`, `advance` or
+ * null, and `failed` names each failed check.
+ */
+async function playStep( probe, questId, quest ) {
+
+	const { objective } = quest;
+	const step = quest.active.find( ( active ) => active.stepId === objective.stepId );
+	const { place, route } = objective;
+	const record = { stepId: step.stepId, kind: step.kind, text: step.text, place, venue: objective.venue, route, cast: step.cast, checks: [] };
+	const started = Date.now();
+	record.checks.push(
+		check( 'the objective names a place the world has', Boolean( place?.exists ), { place } ),
+		check( 'the walk graph reaches it', place?.kind === 'district' ? route.reason === 'district-area' : route.metres !== null, route ),
+		check( 'its people are alive', step.cast.every( ( person ) => ! person.dead ), step.cast )
+	);
+	if ( step.kind === 'goto' ) record.checks.push( check( 'the place has an open interior to arrive in', place?.interior === true, { place } ) );
+	if ( ( await probe( 'state()' ) ).conversation ) await probe( 'leave()' );
+
+	const on = { questId, stepId: step.stepId, timeoutMs: STEP_MS };
+	try {
+
+		record.ready = await probe( `ready(${JSON.stringify( on )})`, STEP_MS * 2 + PAGE_MS );
+		record.checks.push( check( 'the step opens', record.ready.available, record.ready ) );
+		if ( record.ready.available ) record.played = await ( PLAY[ step.kind ] ?? PLAY.press )( { probe, on, step, record } );
+
+	} catch ( error ) {
+
+		record.checks.push( check( 'the player\'s path runs', false, { error: error.message } ) );
+
+	}
+	if ( ( await probe( 'state()' ) ).conversation ) await probe( 'leave()' );
+	const now = await probe( `quest(${JSON.stringify( questId )})` );
+	record.via = now.completed.includes( step.stepId ) ? 'player' : null;
+	if ( ! record.via ) {
+
+		record.advanced = await probe( `advance(${JSON.stringify( { questId, steps: 1, timeoutMs: STEP_MS } )})`, STEP_MS * 3 + PAGE_MS );
+		const [ outcome ] = record.advanced.completed;
+		if ( outcome?.stepId === step.stepId && outcome.ok ) record.via = 'advance';
+		record.checks.push( check( 'the fast-forward completes it', record.via === 'advance', outcome ?? { stopped: record.advanced.stopped } ) );
+
+	}
+	record.seconds = ( Date.now() - started ) / 1000;
+	record.failed = record.checks.filter( ( item ) => ! item.ok ).map( ( item ) => item.name );
+
+	return record;
+
+}
+
+/** How the player does each kind of story step: each pushes its checks onto `record` and returns what it saw. */
+const PLAY = {
+
+	/** Stands before the person, opens the talk with E, sees the story topic and its replies, and commits the reply that completes it. */
+	async talk( { probe, on, step, record } ) {
+
+		const reached = await probe( `reach(${JSON.stringify( on )})`, STEP_MS * 2 + PAGE_MS );
+		const { conversation } = reached.offered ? await probe( 'press()' ) : { conversation: null };
+		const { chat } = await probe( 'state()' );
+		const commit = step.choices?.find( ( choice ) => choice.completesStep );
+		const chosen = conversation && commit ? await probe( `choose(${JSON.stringify( commit.text )})` ) : null;
+		record.checks.push(
+			check( 'its person stands there and E reaches them', reached.offered, reached ),
+			check( 'E opens a conversation with them', Boolean( conversation ) && conversation.npcId === step.cast[ 0 ]?.npcId, conversation ),
+			check( 'the story topic and its replies load', chat.story?.objective === step.text && chat.choices.some( ( choice ) => choice.text === commit?.text && ! choice.disabled ),
+				{ story: chat.story, choices: chat.choices, status: chat.status } ),
+			check( 'the committing reply is taken', Boolean( chosen?.clicked ), chosen && { status: chosen.chat.status, lines: chosen.chat.lines.slice( - 2 ) } )
+		);
+
+		return { reached, conversation, story: chat.story, choices: chat.choices, chosen: chosen && { status: chosen.chat.status } };
+
+	},
+
+	/** Walks in at the door: standing in one of its rooms is arriving. */
+	async goto( { probe, step, record } ) {
+
+		const visit = await probe( `visit(${JSON.stringify( step.place )}, { timeoutMs: ${STEP_MS} })`, STEP_MS + PAGE_MS );
+		record.checks.push( check( 'the player stands in one of its rooms', visit.room === step.place?.id, visit ) );
+
+		return { visit };
+
+	},
+
+	/**
+	 * Starts the escort with E, then walks behind a leader on its path, or
+	 * stands at the destination for a follower to come; the escort completes
+	 * the step once they are both there.
+	 */
+	async escort( { probe, on, step, record } ) {
+
+		const reached = await probe( `reach(${JSON.stringify( on )})`, STEP_MS * 2 + PAGE_MS );
+		if ( reached.offered ) await probe( 'press()' );
+		const npcId = step.cast[ 0 ]?.npcId;
+		const escort = await until( () => probe( 'companion()' ), ( companion ) => companion?.kind === 'escort', 5000 );
+		record.checks.push(
+			check( 'its person stands there and E offers the escort', reached.offered, reached ),
+			check( 'E starts the escort', escort?.npcId === npcId, escort )
+		);
+		if ( escort?.npcId !== npcId ) return { reached, escort };
+
+		const { objective } = await probe( `quest(${JSON.stringify( on.questId )})` );
+		const ms = ( objective.route.metres ?? 0 ) / ESCORT_PACE * 1000 + ESCORT_SLACK_MS;
+		const done = ( quest ) => quest.completed.includes( step.stepId );
+		let walked;
+		// A leader that has arrived waits for the player to step into the place, as a follower does at the door.
+		if ( escort.mode === 'leading' ) walked = await probe( `trail(${JSON.stringify( npcId )}, { timeoutMs: ${Math.round( ms )} })`, ms + PAGE_MS );
+		const arrived = walked?.companion?.walk === 'arrived';
+		if ( ! walked || arrived ) {
+
+			const visit = await probe( `visit(${JSON.stringify( objective.place )})` );
+			walked = { ...walked, visit, arrived };
+			walked.quest = await until( () => probe( `quest(${JSON.stringify( on.questId )})` ), ( quest ) => done( quest ) || ! quest.objective, arrived ? 10000 : ms );
+
+		}
+		const after = await until( () => probe( `quest(${JSON.stringify( on.questId )})` ), done, 5000 );
+		const last = await probe( 'companion()' );
+		record.checks.push( check( 'the escort arrives and completes the step', done( after ), {
+			destination: objective.place, metres: objective.route.metres, mode: escort.mode, companion: last,
+			samples: walked.samples?.slice( - 3 ), ms: walked.ms, visit: walked.visit
+		} ) );
+
+		return { reached, escort, destination: objective.place, walked: { ...walked, samples: walked.samples?.length, quest: undefined } };
+
+	},
+
+	/** Stands where E does the step and presses E. */
+	async press( { probe, on, record } ) {
+
+		const reached = await probe( `reach(${JSON.stringify( on )})`, STEP_MS * 2 + PAGE_MS );
+		const pressed = reached.offered ? await probe( 'press()' ) : null;
+		record.checks.push( check( 'E offers the step where it happens', reached.offered, reached ) );
+
+		return { reached, pressed };
+
+	}
+
+};
 
 /** The companion every half second until `done` holds for it or `milliseconds` pass. */
 async function companionUntil( probe, done, milliseconds ) {
