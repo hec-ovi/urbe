@@ -60,8 +60,12 @@ const TALK_STUBS = {
 		{ type: 'delta', text: STUB_REPLY }, { type: 'sentence', index: 0, text: STUB_REPLY }, { type: 'done', reply: STUB_REPLY }
 	].map( ( event ) => `${JSON.stringify( event )}\n` ).join( '' ) )
 };
-/** The look fields the crowd bakes and the focused body is dressed with. */
-const LOOK = [ 'body', 'hairStyle', 'skin', 'shirt', 'trousers', 'hair', 'sleeve', 'hem' ];
+/** The look fields the crowd bakes and the focused body is dressed with: body is the crowd variant's mesh. */
+const LOOK = [ 'body', 'hairStyle', 'skin', 'shirt', 'trousers', 'hair', 'eyebrows', 'sleeve', 'hem' ];
+/** How many of the nearest people the talk scenario walks up to: hair colours near the pack's grey hide a bug in one sample. */
+const TALKS = 6;
+/** Conversations the talk scenario needs before its checks count. */
+const MIN_TALKS = 3;
 /** No page socket to Vite: frame reports and console lines stay in the page. */
 const QUIET_VITE = `( () => {
 	window.WebSocket = new Proxy( window.WebSocket, {
@@ -83,44 +87,60 @@ const READINESS = `( () => {
 
 const SCENARIOS = {
 
-	/** Walks up to the nearest person, then E: the crowd body before and the focused body after. */
+	/**
+	 * Walks up to each of the nearest people in turn, presses E and leaves
+	 * again: each person's crowd look before, their crowd and focused look in
+	 * the conversation, and both after it, compared field by field.
+	 */
 	async talk( { probe, shot } ) {
 
 		const people = await probe( 'people()' );
-		const shots = new Set();
-		let before = null;
-		let conversation = null;
-		for ( const person of people.slice( 0, 4 ) ) {
+		const shots = [];
+		const talks = [];
+		let apart = null;
+		for ( const person of people.slice( 0, TALKS ) ) {
 
-			const approached = await probe( `approach(${JSON.stringify( person.id )})` );
-			if ( approached.target?.person !== person.id ) continue;
-			before = approached.person;
-			shots.add( await shot( 'talk-street' ) );
-			( { conversation } = await probe( 'press()' ) );
-			if ( conversation ) break;
+			const approached = await probe( `approach(${JSON.stringify( person.id )})` ).catch( () => null );
+			if ( approached?.target?.person !== person.id ) continue;
+			if ( ! shots.length ) shots.push( await shot( 'talk-street' ) );
+			const { conversation } = await probe( 'press()' );
+			const talked = { id: person.id, before: approached.person.look, conversation };
+			talks.push( talked );
+			if ( ! conversation ) continue;
+
+			talked.during = await probe( 'appearance()' );
+			if ( shots.length === 1 ) {
+
+				await sleep( 800 );
+				shots.push( await shot( 'talk-conversation' ) );
+				const { feet } = await probe( 'state()' );
+				apart = Math.round( Math.hypot( ...feet.map( ( value, axis ) => value - approached.person.position[ axis ] ) ) * 100 ) / 100;
+
+			}
+			await probe( 'leave()' );
+			talked.after = await probe( `appearance(${JSON.stringify( { id: conversation.person } )})` );
 
 		}
+		const opened = talks.filter( ( talked ) => talked.conversation && talked.during );
 		const checks = [
-			check( 'a person is in reach of E', Boolean( before ), { people: people.length } ),
-			check( 'E opens a conversation', Boolean( conversation ) )
+			check( `E reaches ${MIN_TALKS} or more people`, talks.length >= MIN_TALKS, { people: people.length, reached: talks.length } ),
+			check( 'E opens a conversation with each of them', talks.length > 0 && opened.length === talks.length,
+				{ failed: talks.filter( ( talked ) => ! opened.includes( talked ) ).map( ( talked ) => talked.id ) } )
 		];
-		if ( ! conversation ) return { checks, shots: [ ...shots ], data: { people } };
+		if ( ! opened.length ) return { checks, shots, data: { people, talks } };
 
-		const after = await probe( 'appearance()' );
-		checks.push( check( 'the conversation stays open', Boolean( after ) ) );
-		if ( ! after ) return { checks, shots: [ ...shots ], data: { before, conversation } };
-		await sleep( 800 );
-		shots.add( await shot( 'talk-conversation' ) );
-		const { feet } = await probe( 'state()' );
-		const apart = Math.hypot( ...feet.map( ( value, axis ) => value - before.position[ axis ] ) );
 		checks.push(
-			check( 'the player stays beside the person', apart < 3, { metres: Math.round( apart * 100 ) / 100 } ),
-			check( 'the focused body shows', Boolean( after.hero ) ),
-			differs( 'the crowd look holds through E', before.look, after.crowd, [ 'seed', ...LOOK ] ),
-			differs( 'the focused body wears the crowd look', after.crowd, after.hero ?? {}, LOOK )
+			check( 'the player stays beside the person', apart !== null && apart < 3, { metres: apart } ),
+			check( 'the focused body shows', opened.every( ( talked ) => talked.during.hero ),
+				{ missing: opened.filter( ( talked ) => ! talked.during.hero ).map( ( talked ) => talked.id ) } ),
+			each( 'the crowd look holds through E', opened, ( talked ) => [ talked.before, talked.during.crowd, [ 'seed', ...LOOK ] ] ),
+			each( 'the focused body wears the crowd look', opened, ( talked ) => [ talked.during.crowd, talked.during.hero ?? {}, LOOK ] ),
+			each( 'the crowd look holds after the talk', opened, ( talked ) => [ talked.before, talked.after?.crowd ?? {}, [ 'seed', ...LOOK ] ] ),
+			each( 'a focused body left showing them still wears it', opened.filter( ( talked ) => talked.after?.hero ),
+				( talked ) => [ talked.after.crowd, talked.after.hero, LOOK ] )
 		);
 
-		return { checks, shots: [ ...shots ], data: { before, conversation, after } };
+		return { checks, shots, data: { people, talks } };
 
 	},
 
@@ -437,11 +457,20 @@ function check( name, ok, detail ) {
 
 }
 
-/** A check that `actual` repeats `expected` in every field; the detail names each field that differs. */
-function differs( name, expected, actual, fields ) {
+/** Each field of `fields` in which `actual` does not repeat `expected`, with both values. */
+function differences( expected, actual, fields ) {
 
-	const detail = Object.fromEntries( fields.filter( ( field ) => expected[ field ] !== actual[ field ] )
+	return Object.fromEntries( fields.filter( ( field ) => expected[ field ] !== actual[ field ] )
 		.map( ( field ) => [ field, { expected: expected[ field ] ?? null, actual: actual[ field ] ?? null } ] ) );
+
+}
+
+/** A check that holds for every talk, `compare` giving its [expected, actual, fields]; the detail names each person and field that differs. */
+function each( name, talks, compare ) {
+
+	const detail = Object.fromEntries( talks
+		.map( ( talked ) => [ talked.id, differences( ...compare( talked ) ) ] )
+		.filter( ( [ , fields ] ) => Object.keys( fields ).length ) );
 
 	return check( name, Object.keys( detail ).length === 0, detail );
 
