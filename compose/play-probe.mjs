@@ -8,15 +8,19 @@
  * preview: a probed session never saves. The page gets `&automation`, which
  * installs Engine's automation probe, and a street crowd of `--crowd` unless
  * the URL names one. Every request the page makes is screened: GET and HEAD
- * pass, a talk line gets a stand-in reply in the browser, and anything else is
- * refused. The page's Vite socket never opens, so it reports nothing to the dev
- * server.
+ * pass, a talk line gets a stand-in reply in the browser, NPC speech reaches
+ * /api/voice only while the voice scenario runs, and anything else is refused.
+ * Without the voice scenario the page gets `voice=off` unless the URL names
+ * it, so the other scenarios put nothing on the voice GPU. The page's Vite
+ * socket never opens, so it reports nothing to the dev server.
  *
  * The browser takes its commands on this process's DevTools pipe and quits when
  * the pipe closes, however this process ends. SIGINT, SIGTERM and SIGHUP also
  * write the report and remove the browser's profile first.
  *
- * Scenarios: talk and chat (the default), follow, lead.
+ * Scenarios: talk and chat (the default), voice, follow, lead. voice speaks a
+ * person's first line and the reply to a chat line through the engine's Voice
+ * box and page audio (muted); it needs the Voice box running behind the engine.
  * Options:
  *   --out <dir>          screenshots and report.json; default a new folder under the OS temp dir, never inside this checkout
  *   --base <url>         Engine origin for a world id, default http://localhost:5306
@@ -49,6 +53,8 @@ const VIEWPORT = { width: 1600, height: 900 };
 const FLAGS = [
 	'--headless', '--no-sandbox', '--no-first-run', '--no-default-browser-check',
 	'--disable-background-networking', '--disable-component-update', '--mute-audio', '--hide-scrollbars',
+	// No player presses a key to let the page's audio run.
+	'--autoplay-policy=no-user-gesture-required',
 	'--ignore-gpu-blocklist', '--use-gl=angle', '--use-angle=vulkan', '--enable-features=Vulkan',
 	`--window-size=${VIEWPORT.width},${VIEWPORT.height}`, '--remote-debugging-pipe'
 ];
@@ -60,6 +66,10 @@ const TALK_STUBS = {
 		{ type: 'delta', text: STUB_REPLY }, { type: 'sentence', index: 0, text: STUB_REPLY }, { type: 'done', reply: STUB_REPLY }
 	].map( ( event ) => `${JSON.stringify( event )}\n` ).join( '' ) )
 };
+/** NPC speech routes, which pass only while the voice scenario runs. */
+const VOICE_PATHS = new Set( [ '/api/voice', '/api/voice/prefetch' ] );
+/** How long a line may take to start playing: a render queued behind another on a busy GPU. */
+const VOICE_WAIT_MS = 120000;
 /** The look fields the crowd bakes and the focused body is dressed with: body is the crowd variant's mesh. */
 const LOOK = [ 'body', 'hairStyle', 'skin', 'shirt', 'trousers', 'hair', 'eyebrows', 'sleeve', 'hem' ];
 /** How many of the nearest people the talk scenario walks up to: hair colours near the pack's grey hide a bug in one sample. */
@@ -165,6 +175,44 @@ const SCENARIOS = {
 
 	},
 
+	/**
+	 * Opens a conversation with someone who has an identity, waits for their
+	 * first line to play to its end, then says a line and waits for the reply to
+	 * play to its end: each line goes through /api/voice and the page's Web Audio.
+	 */
+	async voice( { probe, shot, options, voice } ) {
+
+		let conversation = ( await probe( 'state()' ) ).conversation;
+		for ( const person of await probe( 'people()' ) ) {
+
+			if ( conversation?.npcId ) break;
+			if ( conversation ) await probe( 'leave()' );
+			conversation = await probe( `converse(${JSON.stringify( person.id )}, { attempts: 1 })` );
+
+		}
+		const checks = [ check( 'a conversation with a person is open', Boolean( conversation?.npcId ), conversation ) ];
+		if ( ! conversation?.npcId ) return { checks };
+
+		const greeting = await probe( `voice({ played: 1, timeoutMs: ${VOICE_WAIT_MS} })` );
+		const said = await probe( `say(${JSON.stringify( options.line )})` );
+		const reply = await probe( `voice({ played: ${( greeting?.played ?? 0 ) + 1}, timeoutMs: ${VOICE_WAIT_MS} })` );
+		const { chat } = await probe( 'state()' );
+		const [ first ] = voice;
+		// DevTools reports a stream the page reads to its end as canceled, so a
+		// whole line is the page's own count: played, and none failed.
+		checks.push(
+			check( 'the game has its own voice and the engine offers it', greeting?.status === 'ok', greeting ),
+			check( 'the first line comes from /api/voice as audio', first?.status === 200 && first.type === 'audio/wav', first ),
+			check( 'the first line plays to its end', greeting?.played >= 1, greeting ),
+			check( 'audio arrives past the WAV header', greeting?.bytes > 44, { bytes: greeting?.bytes } ),
+			check( 'the reply to a chat line plays to its end', Boolean( said.reply ) && reply?.played > greeting?.played, { reply: said.reply, played: reply?.played } ),
+			check( 'no line fails', reply?.failed === 0, { failed: reply?.failed, error: reply?.error } )
+		);
+
+		return { checks, shots: [ await shot( 'voice' ) ], data: { conversation, greeting, said, reply, lines: chat.lines, requests: voice } };
+
+	},
+
 	async follow( { probe } ) {
 
 		return hook( await probe( 'follow()' ) );
@@ -192,7 +240,7 @@ async function main() {
 	const out = outputDir( options.out );
 	const report = {
 		started: new Date().toISOString(), target: options.target, url: url.href, talk: options.talk, scenarios: [],
-		talkRequests: [], blocked: [], console: []
+		talkRequests: [], voiceRequests: [], blocked: [], console: []
 	};
 	let session = null;
 	let signal = null;
@@ -237,7 +285,7 @@ async function play( session, url, out, options, report ) {
 	console.log( `output: ${out}` );
 
 	const page = await session.open();
-	watch( page, report, options.talk );
+	watch( page, report, options );
 	await page.send( 'Page.addScriptToEvaluateOnNewDocument', { source: QUIET_VITE } );
 	await page.send( 'Emulation.setDeviceMetricsOverride', { ...VIEWPORT, deviceScaleFactor: 1, mobile: false } );
 	await page.navigate( url.href );
@@ -245,7 +293,7 @@ async function play( session, url, out, options, report ) {
 	console.log( `playable in ${report.ready.seconds} s: ${report.ready.state.backend} ${report.ready.state.tier}, ${report.ready.state.crowd} people` );
 
 	const context = {
-		options, talk: report.talkRequests,
+		options, talk: report.talkRequests, voice: report.voiceRequests,
 		probe: ( call ) => page.evaluate( `window.urbe.automation.${call}` ),
 		shot: async ( name ) => {
 
@@ -294,7 +342,7 @@ function parse( argv ) {
 	].filter( Boolean );
 	if ( problems.length ) {
 
-		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [follow] [lead] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--crowd n] [--timeout seconds]` );
+		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [voice] [follow] [lead] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--crowd n] [--timeout seconds]` );
 		process.exit( 2 );
 
 	}
@@ -304,7 +352,7 @@ function parse( argv ) {
 }
 
 /** The read-only preview to open: never a catalog session, always with the probe. */
-function playUrl( { target, base, crowd, backend } ) {
+function playUrl( { target, base, crowd, backend, scenarios } ) {
 
 	let url;
 	if ( /^https?:\/\//.test( target ) ) url = new URL( target );
@@ -321,6 +369,7 @@ function playUrl( { target, base, crowd, backend } ) {
 	query.set( 'mode', 'game' );
 	query.set( 'automation', '1' );
 	if ( ! query.has( 'crowd' ) ) query.set( 'crowd', String( crowd ) );
+	if ( ! scenarios.includes( 'voice' ) && ! query.has( 'voice' ) ) query.set( 'voice', 'off' );
 	if ( backend === 'webgl' && ! query.has( 'backend' ) ) {
 
 		query.set( 'backend', 'webgl' );
@@ -349,15 +398,16 @@ function outputDir( requested ) {
 
 /**
  * Screens every request: GET and HEAD pass, a talk line is stubbed (or let
- * through when `talk` is live), anything else is refused. Records refused
- * requests, talk requests, console warnings, page errors and failed responses
- * into `report`.
+ * through when `talk` is live), NPC speech passes while the voice scenario
+ * runs, anything else is refused. Records refused requests, talk and voice
+ * requests, console warnings, page errors and failed responses into `report`.
  */
-function watch( page, report, talk ) {
+function watch( page, report, { talk, scenarios } ) {
 
 	const at = () => ( Date.now() - Date.parse( report.started ) ) / 1000;
 	const log = ( entry ) => { if ( report.console.length < 300 ) report.console.push( { at: at(), ...entry } ); };
-	/** Live talk requests awaiting their response, by network id. */
+	const speaks = scenarios.includes( 'voice' );
+	/** Talk and voice requests let through, awaiting their response, by network id. */
 	const live = new Map();
 	page.on( 'Runtime.consoleAPICalled', ( { type, args } ) => {
 
@@ -370,9 +420,23 @@ function watch( page, report, talk ) {
 	page.on( 'Network.responseReceived', ( { requestId, response } ) => {
 
 		const entry = live.get( requestId );
-		if ( entry ) entry.status = response.status;
-		live.delete( requestId );
+		if ( entry ) Object.assign( entry, { status: response.status, type: response.mimeType } );
 		if ( response.status >= 400 ) log( { type: 'http', text: `${response.status} ${response.url}` } );
+
+	} );
+	// A body streams on after its response starts: the bytes received, and whether it ended or broke off.
+	page.on( 'Network.loadingFinished', ( { requestId, encodedDataLength } ) => {
+
+		const entry = live.get( requestId );
+		if ( entry ) Object.assign( entry, { bytes: encodedDataLength, finished: at() } );
+		live.delete( requestId );
+
+	} );
+	page.on( 'Network.loadingFailed', ( { requestId, errorText, canceled } ) => {
+
+		const entry = live.get( requestId );
+		if ( entry ) Object.assign( entry, { error: canceled ? 'canceled' : errorText, finished: at() } );
+		live.delete( requestId );
 
 	} );
 	page.on( 'Fetch.requestPaused', ( { requestId, networkId, request } ) => {
@@ -392,6 +456,14 @@ function watch( page, report, talk ) {
 			}
 			Object.assign( entry, { status: 200, stubbed: true } );
 			return page.send( 'Fetch.fulfillRequest', { requestId, responseCode: 200, ...answer } );
+
+		}
+		if ( method === 'POST' && speaks && VOICE_PATHS.has( path ) ) {
+
+			const entry = { at: at(), path };
+			report.voiceRequests.push( entry );
+			live.set( networkId, entry );
+			return page.send( 'Fetch.continueRequest', { requestId } );
 
 		}
 		if ( method === 'GET' || method === 'HEAD' ) return page.send( 'Fetch.continueRequest', { requestId } );
