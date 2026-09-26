@@ -9,30 +9,35 @@
  * the world.
  *
  * node compose/check-game.mjs <small|medium|large> [baseUrl] --recording <dir>
- *   [--named <dir> --seed <seed>] [--name <city name>] [--interiors 9] [--side-jobs 3]
+ *   [--plan <id> | --seed <seed> [--name <city name>]] [--named <dir>] [--interiors 9] [--side-jobs 3]
  *
- * --recording is a Quests recording directory (recording.json). --named holds
- * the plan as the Naming box names it, blueprint.named.json and npc-types.json,
- * named from the plan Atlas makes of <size> and --seed. Both are paths Engine
- * resolves against its checkout, e.g. ../quests/creation/samples/urbe-small.
+ * --recording is a Quests recording directory (recording.json), or the out dir
+ * of a Quests author run. --plan builds a plan Engine already holds instead of
+ * planning one. --named holds the plan as the Naming box names it,
+ * blueprint.named.json and npc-types.json: the plan's own folder
+ * (out/plans/<id>) with --plan, or a folder named from the plan Atlas makes of
+ * <size> and --seed. Paths are as Engine resolves them against its checkout,
+ * e.g. ../quests/creation/samples/urbe-small.
  */
 import assert from 'node:assert/strict';
 import { parseArgs } from 'node:util';
 import { launcher } from './launcher.mjs';
 
-const USAGE = 'usage: check-game.mjs <small|medium|large> [baseUrl] --recording <dir> [--named <dir> --seed <seed>] [--name <city name>] [--interiors 9] [--side-jobs 3]';
+const USAGE = 'usage: check-game.mjs <small|medium|large> [baseUrl] --recording <dir> [--plan <id> | --seed <seed> [--name <city name>]] [--named <dir>] [--interiors 9] [--side-jobs 3]';
 const { values, positionals } = parseArgs( {
 	allowPositionals: true,
 	options: {
-		recording: { type: 'string' }, named: { type: 'string' }, seed: { type: 'string' }, name: { type: 'string' },
+		recording: { type: 'string' }, plan: { type: 'string' }, named: { type: 'string' }, seed: { type: 'string' }, name: { type: 'string' },
 		interiors: { type: 'string', default: '9' }, 'side-jobs': { type: 'string', default: '3' }
 	}
 } );
 const [ size, base = 'http://localhost:5306' ] = positionals;
-assert.ok( [ 'small', 'medium', 'large' ].includes( size ) && values.recording && ( ! values.named || values.seed ), USAGE );
+assert.ok( [ 'small', 'medium', 'large' ].includes( size ) && values.recording
+	&& ( values.plan ? ! values.seed && ! values.name : ! values.named || values.seed ), USAGE );
 const interiors = Number( values.interiors );
 const sideJobs = Number( values[ 'side-jobs' ] );
-const named = values.named ? { blueprint: `${values.named}/blueprint.named.json`, types: `${values.named}/npc-types.json` } : null;
+const namedDir = values.named?.replace( /\/+$/, '' );
+const named = namedDir ? { blueprint: `${namedDir}/blueprint.named.json`, types: `${namedDir}/npc-types.json` } : null;
 const api = launcher( base );
 const seconds = {};
 
@@ -54,12 +59,12 @@ async function stage( name, method, input ) {
 
 }
 
-const { plan } = await stage( 'plan', 'planCity', {
+const plan = values.plan ? await api.json( `/out/plans/${values.plan}/plan.json` ) : ( await stage( 'plan', 'planCity', {
 	size, ...( values.seed ? { seed: values.seed } : {} ), ...( values.name ? { name: values.name } : {} )
-} );
+} ) ).plan;
 assert.equal( plan.size, size );
 console.log( `ok plan ${plan.id}: seed ${plan.seed}, ${Object.values( plan.stats.parcelCounts ).reduce( ( sum, count ) => sum + count, 0 )} parcels, `
-	+ `population ${plan.stats.population}, ${seconds.plan.toFixed( 1 )} s` );
+	+ `population ${plan.stats.population}, ${values.plan ? `planned ${plan.plannedAt}` : `${seconds.plan.toFixed( 1 )} s`}` );
 
 const { city } = await stage( 'build', 'buildCity', { cityId: plan.id, ...( named ? { named } : {} ) } );
 const cityRoot = `/out/cities/${city.id}`;
@@ -74,6 +79,16 @@ if ( named ) {
 	assert.equal( cityManifest.namingTheme, atlas.meta.naming?.theme, 'the city is named in another theme' );
 	types = await api.json( `${cityRoot}/npc-types.json` );
 	assert.ok( types.types?.length > 0, 'the named city carries no NPC types' );
+	// Named in its own folder, the plan's naming work moves into the city.
+	if ( namedDir === `out/plans/${plan.id}` ) {
+
+		for ( const file of [ 'blueprint.named.json', 'npc-types.json' ] ) {
+
+			assert.ok( await api.served( `${cityRoot}/naming/${file}` ), `the author's ${file} did not move into the city` );
+
+		}
+
+	}
 
 }
 console.log( `ok city ${city.id}: ${city.buildingCount} buildings, ${atlas.parcels.filter( ( parcel ) => parcel.name ).length} named places, `
@@ -86,7 +101,7 @@ if ( named ) assert.ok( instances.ids.some( ( id ) => typeOf.get( id ) === 'resi
 console.log( `ok interiors ${instances.ids.length}: ${instances.ids.map( ( id ) => `${id} ${typeOf.get( id )}` ).join( ', ' )}, ${seconds.interiors.toFixed( 1 )} s` );
 
 const { quests } = await stage( 'story', 'importStory', { cityId: city.id, recording: values.recording, sideJobs } );
-assert.ok( quests.mainSteps >= 6, `the main story has ${quests.mainSteps} steps` );
+assert.ok( quests.mainSteps >= 1, 'the main story has no steps' );
 const draft = `/out/drafts/${city.id}`;
 const recording = await api.json( `${draft}/story/recording.json` );
 const leftOut = await api.json( `${draft}/story/left-out.json` );
@@ -110,6 +125,7 @@ for ( const [ name, count ] of Object.entries( manifest.counts ) ) {
 
 }
 assert.equal( bundle.questlines.length, 1 + quests.sideJobs );
+assert.equal( bundle.questlines[ 0 ].steps.length, quests.mainSteps, 'the shipped main story is not the one imported' );
 assert.equal( saved.quests.length + saved.sideJobs.length, bundle.questlines.length );
 const questIds = new Set( bundle.questlines.map( ( definition ) => definition.id ) );
 const opened = new Set( instances.ids );
@@ -125,7 +141,9 @@ for ( const binding of bundle.missionItemBindings ) assert.ok( assets.has( bindi
 for ( const spec of bundle.scenery ?? [] ) assert.ok( opened.has( spec.place.parcelId ), `scene ${spec.sceneId} stands in ${spec.place.parcelId}, which did not open` );
 assert.ok( bundle.hostCapabilities.scenery, 'the game declares no scenery' );
 const kinds = [ ...new Set( bundle.questlines.flatMap( ( definition ) => definition.steps.map( ( step ) => step.target.kind ) ) ) ];
-for ( const absent of [ 'story/recording.json', 'story/left-out.json', 'quests/handoff-input.json', 'quests/all.questlines.json', 'draft.json' ] ) {
+for ( const absent of [
+	'naming/npc-types.json', 'story/recording.json', 'story/left-out.json', 'quests/handoff-input.json', 'quests/all.questlines.json', 'draft.json'
+] ) {
 
 	assert.equal( await api.served( `${root}/${absent}` ), false, `the game ships ${absent}` );
 

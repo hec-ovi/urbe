@@ -162,6 +162,22 @@ services:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5305/testbed/"]
 
+  naming:
+    <<: *box
+    working_dir: /work/naming
+    # The Naming CLI for an author agent naming a plan Engine made; no part of the running
+    # stack. Mount the plan's folder and run the external author mode (README, Authoring):
+    # docker compose run --rm -T -v "$PWD/engine/out/plans/<id>:/plan" naming sh -c
+    #   'npm run --silent build >&2 && npm run --silent world -- /plan --theme "<theme>" --external /plan/author'
+    profiles: ["author"]
+    environment:
+      <<: *user
+    volumes:
+      - *install-cache
+      - ./compose/box-start.sh:/work/box-start.sh:ro
+      - ./naming:/work/naming
+      - naming_modules:/work/naming/node_modules
+
   quests:
     <<: *box
     working_dir: /work/quests
@@ -296,6 +312,7 @@ volumes:
   interior_modules:
   simulation_modules:
   quests_modules:
+  naming_modules:
   engine_modules:
   materials_modules:
   voice_data:

@@ -1,5 +1,7 @@
 # Changelog
 
+0.12: Compose runs the Naming CLI as the `naming` tool service under the `author` profile, so an author agent names a plan through the pipeline's external author mode; the README gives the whole authoring loop. `compose/check-game.mjs` takes a plan Engine holds (`--plan`), checks that naming work done in the plan's folder moves into the city, and takes a main story of any length.
+
 0.11: Creation asks no model. Compose runs no Naming service and gives Quests no model settings; `LLM_*` reach Engine for NPC dialogue only. `compose/check-game.mjs` plans a city, builds it from a pre-named plan, opens interiors, imports a pre-authored Quests recording and checks the shipped game, and the launcher checks run Engine's planning, building and story import stages as creation jobs.
 
 0.10: Compose runs Naming, built with no public port, and Engine reads it with its dependencies to name a themed city before it is built. The launcher checks run creation stages as Engine creation jobs over node:http with no request timeout, `compose/check-game.mjs` makes one themed story game through the model server and checks its shipped bundle, and `compose/check-catalog.mjs` checks kit placement records, empty lots and interiors as JSON layouts.
