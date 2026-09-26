@@ -22,7 +22,7 @@
  * the pipe closes, however this process ends. SIGINT, SIGTERM and SIGHUP also
  * write the report and remove the browser's profile first.
  *
- * Scenarios: talk and chat (the default), voice, follow, lead, scene, story. voice speaks a
+ * Scenarios: talk and chat (the default), voice, follow, lead, scene, story, ui. voice speaks a
  * person's first line and the reply to a chat line through the engine's Voice
  * box and page audio (muted); it needs the Voice box running behind the engine.
  * follow asks the nearest people with the chat's 'Come with me' until one comes
@@ -45,6 +45,11 @@
  * delivers, works, listens or observes with E. A step the player's path does
  * not finish is completed by the probe's fast-forward; both are recorded.
  * Each scene a step stages is visited, checked and screenshot as scene does.
+ * ui opens a conversation with the main story's first person when it opens
+ * with a talk, else with the nearest person, presses Escape in it, then
+ * Escape on the street: the chat closes without the pause menu, the pause
+ * menu comes up on the street with the clock and the crowd holding still, and
+ * Resume plays on. It screenshots the chat, the street after it and the menu.
  * Options:
  *   --out <dir>          screenshots and report.json; default a new folder under the OS temp dir, never inside this checkout
  *   --base <url>         Engine origin for a world id, default http://localhost:5306
@@ -121,6 +126,14 @@ const ESCORT_PACE = 0.8;
 const ESCORT_SLACK_MS = 60000;
 /** A story longer than this many steps is walking in circles. */
 const MAX_STEPS = 120;
+/**
+ * The browser's side of the pointer lock the probe holds, for the ui
+ * scenario: the lock lost as the browser reports it, and a lock granted.
+ */
+const RELEASE = 'game.input.handlers.pointerlockchange()';
+const GRANT = 'game.input.onLockChange( window.urbe.input.locked = true )';
+/** The world clock in seconds; the probe's state rounds it to whole minutes. */
+const CLOCK = 'game.clock.seconds';
 /** How many of the nearest people the talk scenario walks up to: hair colours near the pack's grey hide a bug in one sample. */
 const TALKS = 6;
 /** Conversations the talk scenario needs before its checks count. */
@@ -440,6 +453,67 @@ const SCENARIOS = {
 
 		return { checks, shots, data: { questId, ending: quest.ending, steps, visits, end: quest } };
 
+	},
+
+	/**
+	 * The conversation and pause screens as a player meets them: the main
+	 * story's first person when it opens with a talk, else the nearest person;
+	 * Escape in that conversation, then Escape on the street, then Resume.
+	 * The probe holds the pointer lock a headless browser never grants, so it
+	 * stands in for the browser: the chat's release, the street's Escape and
+	 * the lock Resume asks for.
+	 */
+	async ui( { probe, shot } ) {
+
+		const quest = await probe( 'quest()' );
+		const first = quest?.objective?.kind === 'talk' ? { questId: quest.questId, stepId: quest.objective.stepId, timeoutMs: STEP_MS } : null;
+		const ready = first && await probe( `ready(${JSON.stringify( first )})`, STEP_MS * 2 + PAGE_MS );
+		const reached = ready?.available && await probe( `reach(${JSON.stringify( first )})`, STEP_MS * 2 + PAGE_MS );
+		const conversation = reached?.offered ? ( await probe( 'press()' ) ).conversation : await probe( 'converse()' );
+		const checks = [ check( 'a conversation is open', Boolean( conversation ), { story: first, reached } ) ];
+		if ( ! conversation ) return { checks };
+
+		await sleep( 800 );
+		const shots = [ await shot( 'ui-chat' ) ];
+		const { chat } = await probe( 'state()' );
+		const header = await probe( 'game.view.dialog.element.querySelector( \'#conversation-name\' ).textContent' );
+		await probe( RELEASE );
+		await probe( 'game.view.dialog.input.dispatchEvent( new KeyboardEvent( \'keydown\', { key: \'Escape\', code: \'Escape\', bubbles: true } ) )' );
+		await sleep( 500 );
+		const escaped = { conversation: ( await probe( 'state()' ) ).conversation, paused: ! await probe( 'game.view.pause.element.hidden' ) };
+		shots.push( await shot( 'ui-chat-escape' ) );
+		await probe( GRANT );
+
+		await probe( RELEASE );
+		await sleep( 500 );
+		const before = await probe( CLOCK );
+		const crowd = await probe( 'people()' );
+		await sleep( 1500 );
+		const after = await probe( CLOCK );
+		const moved = ( await probe( 'people()' ) ).filter( ( person ) => {
+
+			const was = crowd.find( ( each ) => each.id === person.id );
+			return was && Math.hypot( ...person.position.map( ( value, axis ) => value - was.position[ axis ] ) ) > 0.01;
+
+		} );
+		const paused = ! await probe( 'game.view.pause.element.hidden' );
+		shots.push( await shot( 'ui-pause' ) );
+		await probe( 'game.view.pause.buttons.get( \'resume\' ).click()' );
+		await probe( GRANT );
+		await sleep( 1000 );
+		const resumed = { paused: ! await probe( 'game.view.pause.element.hidden' ), seconds: await probe( CLOCK ) };
+		checks.push(
+			check( 'the chat names who is talking', header === conversation.name, { header, name: conversation.name } ),
+			check( 'Escape in a conversation closes it', escaped.conversation === null, escaped ),
+			check( 'Escape in a conversation does not pause', ! escaped.paused, escaped ),
+			check( 'Escape on the street pauses', paused ),
+			check( 'the clock stands still while paused', after === before, { before, after } ),
+			check( 'the crowd stands still while paused', moved.length === 0, { moved: moved.map( ( person ) => person.id ) } ),
+			check( 'Resume plays on', ! resumed.paused && resumed.seconds > after, resumed )
+		);
+
+		return { checks, shots, data: { conversation, chat, escaped, paused: { before, after }, resumed } };
+
 	}
 
 };
@@ -559,7 +633,7 @@ function parse( argv ) {
 	].filter( Boolean );
 	if ( problems.length ) {
 
-		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [voice] [follow] [lead] [scene] [story] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--advance-to step] [--quest id] [--crowd n] [--timeout seconds]` );
+		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [voice] [follow] [lead] [scene] [story] [ui] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--advance-to step] [--quest id] [--crowd n] [--timeout seconds]` );
 		process.exit( 2 );
 
 	}
