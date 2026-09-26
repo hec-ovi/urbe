@@ -62,7 +62,7 @@ For cached, offline dependency installation, use `BOX_OFFLINE_INSTALL=1 docker c
 
 ### Game assets
 
-Engine play needs three downloaded model sets under `URBE_MODELS_DIR` (default `~/models/quaternius`). Downloads are kept in `resources/` beside the coordinator root (`../resources`), the path the character installer reads (`URBE_RESOURCES_DIR` overrides it).
+Engine play needs three downloaded model sets under `URBE_MODELS_DIR` (default `~/models/quaternius`). Downloads are kept in `resources/` beside the coordinator root (`../resources`), the path the character installer reads (`URBE_RESOURCES_DIR` overrides it). Interior furniture has its own folder inside Interior and is optional.
 
 ```
 ~/models/quaternius/
@@ -91,11 +91,11 @@ The free Standard tiers do not work: Engine needs all six Source bodies and the 
 
 | Id | File | Model | License |
 | --- | --- | --- | --- |
-| pine | `tree_3d_model_fir_spruce_pine.glb` | [Tree 3d model Fir Spruce Pine](https://sketchfab.com/3d-models/d774856e77f24daa852187d701a528f7) by Varleyhal | Free Standard |
-| maple | `maple_tree.glb` | [Maple Tree](https://sketchfab.com/3d-models/68bea58fd9a549a99cfa5d1c739c97a8) by JarlBllin89 | Free Standard |
-| bags | `animal_crossing_new_horizons_trash_bags.glb` | [Animal Crossing New Horizons Trash Bags](https://sketchfab.com/3d-models/5aeb7f10061f4964a3ad025a2dc8b180) by Bearfnf | Free Standard |
-| dumpster | `heavy_duty_dumpster.glb` | [Heavy Duty Dumpster](https://sketchfab.com/3d-models/7b80f3d0612541359c42dc0a79037051) by Potato_Pizza | Free Standard |
-| container | `container_low.glb` | [container low](https://sketchfab.com/3d-models/7a0afe670243423c931f575b06c9df4f) by cermo.gs.44 | Free Standard |
+| pine | `tree_3d_model_fir_spruce_pine.glb` | [Tree 3d model Fir Spruce Pine](https://sketchfab.com/3d-models/7daf178b3fa64e2fa7b2c2d19cf2a4bf) by Qruad | Free Standard |
+| maple | `maple_tree.glb` | [Maple Tree](https://sketchfab.com/3d-models/68bea58fd9a549a99cfa5d1c739c97a8) by driggleman | Free Standard |
+| bags | `animal_crossing_new_horizons_trash_bags.glb` | [Animal Crossing New Horizons Trash Bags](https://sketchfab.com/3d-models/5aeb7f10061f4964a3ad025a2dc8b180) by StinkySkunk12 | Free Standard |
+| dumpster | `heavy_duty_dumpster.glb` | [Heavy Duty Dumpster](https://sketchfab.com/3d-models/7b80f3d0612541359c42dc0a79037051) by Full_Metal_Dipshit | Free Standard |
+| container | `container_low.glb` | [container low](https://sketchfab.com/3d-models/7a0afe670243423c931f575b06c9df4f) by Cebrail Yıldız | Free Standard |
 
 Sketchfab names each GLB download after the model title, which matches the catalog file names. Engine scales trees to the catalog height, so another maple upload also fits. Put the five files in `../resources/street-props/`, then:
 
@@ -120,6 +120,62 @@ done
 ```
 
 Anonymous Drive downloads can fail with "Quota exceeded"; downloading the FBX folder while signed in to Google works.
+
+**Interior furniture** (Sketchfab, free, downloaded as GLB; Poly Haven, CC0)
+
+Interior furnishes rooms from its [catalog](interior/src/assets/catalog.json). Sketchfab models may not be redistributed, so each machine downloads its own. In the Game column, `local` models are built by the import and drawn in rooms, `none` are only measured for the catalog, and `committed` Poly Haven models ship with Interior. Engine plays without the `local` models: their placements stand empty and one warning lists the missing ids.
+
+The import reads every file below at its path under `interior/assets-sources/` ([import plan](interior/src/assets/import-plan.ts)). Save each Sketchfab GLB under that file name; the five street prop downloads above are the same models under the same names. Unzip each Poly Haven glTF 1k download, with its `.bin` and textures, into its folder. The import reads each GLB's embedded Sketchfab source and asks the Sketchfab API for its current title and license, then writes the models and the catalog:
+
+```sh
+(cd interior && npm run assets:import)
+```
+
+| File | Model | Author | License | Game |
+| --- | --- | --- | --- | --- |
+| `sketchfab/animal_crossing_new_horizons_trash_bags.glb` | [Animal Crossing New Horizons Trash Bags](https://sketchfab.com/3d-models/5aeb7f10061f4964a3ad025a2dc8b180) | StinkySkunk12 | Free Standard | local |
+| `sketchfab/bed_1.glb` | [Bed_1](https://sketchfab.com/3d-models/3afd8fe7c7cd4fd7b91ff76e49831b25) | Render Man | Free Standard | none |
+| `sketchfab/container_low.glb` | [container low](https://sketchfab.com/3d-models/7a0afe670243423c931f575b06c9df4f) | Cebrail Yıldız | Free Standard | none |
+| `sketchfab/dirty_toilet.glb` | [Dirty Toilet](https://sketchfab.com/3d-models/5878a356ba1144a8aa4e214e511b523d) | davidtsoenyane | Free Standard | local |
+| `sketchfab/elegant_black_office_desk.glb` | [Elegant Black Office Desk](https://sketchfab.com/3d-models/4946b7e4203e4d60a1da7cedc9907523) | AshCreations3D | Free Standard | local |
+| `sketchfab/file_shelf.glb` | [File Shelf](https://sketchfab.com/3d-models/adcc1ab47d7c45ff9d08e0af2815458b) | Anom Purple Modelling | Free Standard | local |
+| `sketchfab/flexispot_office_chair.glb` | [FLEXISPOT Office Chair](https://sketchfab.com/3d-models/d8270d166bcc441e81008f4950f7a6fb) | desmond_k | Free Standard | none |
+| `sketchfab/free_ac_unit.glb` | [Free AC Unit](https://sketchfab.com/3d-models/08223d7724f54639b06cb2b276b6d252) | vertexmonster | Free Standard | none |
+| `sketchfab/fridgemodern.glb` | [holod](https://sketchfab.com/3d-models/c7c02065bb7649eb93da7f35ba77f086) | flinsikovflois | Free Standard | local |
+| `sketchfab/furniture__no-29.glb` | [Furniture_ No-29](https://sketchfab.com/3d-models/9ab5ea61ec4d4c76a5a084b94dffca47) | AshCreations3D | Free Standard | local |
+| `sketchfab/futuristic_bluish_sofa.glb` | [Futuristic Bluish Sofa](https://sketchfab.com/3d-models/f6b631b8ebac454d849ee1314316e701) | AshCreations3D | Free Standard | local |
+| `sketchfab/futuristic_glossy_white_chair.glb` | [Futuristic Glossy White Chair](https://sketchfab.com/3d-models/d61a35f8562c48dc9361155f3748a71f) | AshCreations3D | Free Standard | local |
+| `sketchfab/heavy_duty_dumpster.glb` | [Heavy Duty Dumpster](https://sketchfab.com/3d-models/7b80f3d0612541359c42dc0a79037051) | Full_Metal_Dipshit | Free Standard | none |
+| `sketchfab/ikea_cabinet.glb` | [Ikea Cabinet](https://sketchfab.com/3d-models/aeba519f5e2143259ac4c94ae0885b63) | Graham Rust | Free Standard | local |
+| `sketchfab/jack_daniels.glb` | [JACK_DANIELS](https://sketchfab.com/3d-models/f752d4158fa947b597ea38885a1ea23a) | Biankk_ | Free Standard | none |
+| `sketchfab/laptop.glb` | [Laptop](https://sketchfab.com/3d-models/dbde9a4abcfa4352a49397bf6802aa4d) | grohanxavyasa | Free Standard | local |
+| `sketchfab/maple_tree.glb` | [Maple Tree](https://sketchfab.com/3d-models/68bea58fd9a549a99cfa5d1c739c97a8) | driggleman | Free Standard | local |
+| `sketchfab/mattress.glb` | [Mattress](https://sketchfab.com/3d-models/2da1d0b25236404f8442ceb1e92a2a48) | SPietras | Free Standard | local |
+| `sketchfab/modern_entertainment_center_free.glb` | [Modern Entertainment Center (FREE)](https://sketchfab.com/3d-models/ce34613c18b944a8b4e12477dc1cc6e2) | Brandon Westlake | Free Standard | local |
+| `sketchfab/modern_gray_sofa__3d_model.glb` | [Modern Gray Sofa - 3D Model](https://sketchfab.com/3d-models/7055607ca8c54e0cad82200d672a4e72) | 3D Next Level Gen | Free Standard | local |
+| `sketchfab/modern_toilet.glb` | [modern toilet](https://sketchfab.com/3d-models/d35eae86e9c149b181a4dc8d20d5b556) | Dragomike | Free Standard | local |
+| `sketchfab/office_chair.glb` | [Office Chair](https://sketchfab.com/3d-models/3d2ca8666d4149c383724242a62215ef) | Maria de Fatima | Free Standard | local |
+| `sketchfab/old_leather_office_chair.glb` | [Old leather office chair](https://sketchfab.com/3d-models/5f2076e080cd48a583ee66f0ccb52b88) | Timothy Ahene | Free Standard | local |
+| `sketchfab/realistic_bed_3d_model.glb` | [Realistic Bed 3D Model](https://sketchfab.com/3d-models/9b97ab81ecba4381b81c5ed8e685bb0a) | dengxiart | Free Standard | none |
+| `sketchfab/reception_table_scifi.glb` | [RECEPTION TABLE TV](https://sketchfab.com/3d-models/b2bd64e7577e4799aa5f3e7a13518f54) | G.P 3D MOD | Free Standard | none |
+| `sketchfab/red_oil_barrel_-_cc0.glb` | [Red Oil Barrel - CC0](https://sketchfab.com/3d-models/08d9ee8adfd842dc969b78fce4c91e82) | SPLEEN VISION | Free Standard | none |
+| `sketchfab/retro_lowpoly_bed.glb` | [Retro Lowpoly Bed](https://sketchfab.com/3d-models/22564aa6634e432a8a0cf57596246cf5) | lonesomeducky | Free Standard | local |
+| `sketchfab/sci-_fi_bed.glb` | [Sci- Fi Bed](https://sketchfab.com/3d-models/b9a020029542499691aa303c09f8fc5f) | astudio_3Dmodels | Free Standard | local |
+| `sketchfab/sci-fi_furniture_pack_aaa_shelving_unit_c.glb` | [Sci-Fi Furniture Pack AAA: Shelving Unit C](https://sketchfab.com/3d-models/f40b3e3c3eab4f8a8dcadfa527af04e9) | blackcloudstudios | Free Standard | local |
+| `sketchfab/sci_fi_3_chair.glb` | [Sci Fi Chair](https://sketchfab.com/3d-models/d6588a0fa21345449b2b60057a7dce5f) | agarwalarpit200 | Free Standard | local |
+| `sketchfab/scifi_desk.glb` | [SciFi Desk](https://sketchfab.com/3d-models/d4a09022a8874ae6bdc44b3e42a6ea6c) | Sousinho | Free Standard | local |
+| `sketchfab/sinkbathroom.glb` | [Sink](https://sketchfab.com/3d-models/1364672d147a491d8a2b02b9c0352f7d) | swedenstyle34 | Free Standard | local |
+| `sketchfab/sinkbathroom2.glb` | [Sink](https://sketchfab.com/3d-models/0827297fcc9e455c996501f04230e820) | Beer_Wizard | Free Standard | none |
+| `sketchfab/soda_dispenser.glb` | [Soda_Dispenser](https://sketchfab.com/3d-models/08830b0fccd446cf97314326d221140a) | Shorty_Digitan | Free Standard | local |
+| `sketchfab/table.glb` | [Table](https://sketchfab.com/3d-models/6257d89250be442e898b9cab5ceac55c) | dimazverev64 | Free Standard | local |
+| `sketchfab/tandem_seating_-_hospital.glb` | [Tandem seating - hospital](https://sketchfab.com/3d-models/ef96620d1a1d4f529a71589f6ae4a41d) | Veebroush | Free Standard | local |
+| `sketchfab/tree_3d_model_fir_spruce_pine.glb` | [Tree 3d model Fir Spruce Pine](https://sketchfab.com/3d-models/7daf178b3fa64e2fa7b2c2d19cf2a4bf) | Qruad | Free Standard | none |
+| `sketchfab/unbranded_conventional_fridge.glb` | [Unbranded conventional Fridge](https://sketchfab.com/3d-models/0d14bb0441be40e0b86d0ba380ed3d25) | assetfactory | Free Standard | local |
+| `sketchfab/whiskey_glass.glb` | [Whiskey Glass](https://sketchfab.com/3d-models/4163cc2cee414018b5cf097babca9db6) | Adam Hayward | Free Standard | local |
+| `polyhaven/SchoolChair_01/SchoolChair_01_1k.gltf` | [School Chair 01](https://polyhaven.com/a/SchoolChair_01) | Ethan Place | CC0 | committed |
+| `polyhaven/metal_office_desk/metal_office_desk_1k.gltf` | [Metal Office Desk](https://polyhaven.com/a/metal_office_desk) | Ulan Cabanilla | CC0 | committed |
+| `polyhaven/Sofa_01/Sofa_01_1k.gltf` | [Sofa 01](https://polyhaven.com/a/Sofa_01) | Kirill Sannikov | CC0 | committed |
+| `polyhaven/potted_plant_02/potted_plant_02_1k.gltf` | [Potted Plant 02](https://polyhaven.com/a/potted_plant_02) | Rico Cilliers | CC0 | committed |
 
 ### Preview services and ports
 
