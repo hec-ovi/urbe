@@ -1034,14 +1034,21 @@ const PLAY = {
 	async escort( { probe, on, step, record } ) {
 
 		const reached = await probe( `reach(${JSON.stringify( on )})`, STEP_MS * 2 + PAGE_MS );
-		if ( reached.offered ) await probe( 'press()' );
 		const npcId = step.cast[ 0 ]?.npcId;
-		const escort = await until( () => probe( 'companion()' ), ( companion ) => companion?.kind === 'escort', 5000 );
+		// A player whose E did not start the escort reads why and presses again.
+		const presses = [];
+		let escort = null;
+		for ( let attempt = 0; reached.offered && attempt < 2 && escort?.npcId !== npcId; attempt ++ ) {
+
+			presses.push( await probe( 'press()' ) );
+			escort = await until( () => probe( 'companion()' ), ( companion ) => companion?.kind === 'escort', 5000 );
+
+		}
 		record.checks.push(
 			check( 'its person stands there and E offers the escort', reached.offered, reached ),
-			check( 'E starts the escort', escort?.npcId === npcId, escort )
+			check( 'E starts the escort', escort?.npcId === npcId, { escort, presses } )
 		);
-		if ( escort?.npcId !== npcId ) return { reached, escort };
+		if ( escort?.npcId !== npcId ) return { reached, escort, presses };
 
 		const { objective } = await probe( `quest(${JSON.stringify( on.questId )})` );
 		const ms = ( objective.route.metres ?? 0 ) / ESCORT_PACE * 1000 + ESCORT_SLACK_MS;
@@ -1064,7 +1071,7 @@ const PLAY = {
 			samples: walked.samples?.slice( - 3 ), ms: walked.ms, visit: walked.visit
 		} ) );
 
-		return { reached, escort, destination: objective.place, walked: { ...walked, samples: walked.samples?.length, quest: undefined } };
+		return { reached, escort, presses: presses.length, destination: objective.place, walked: { ...walked, samples: walked.samples?.length, quest: undefined } };
 
 	},
 
