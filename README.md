@@ -2,7 +2,7 @@
 
 A deterministic city sandbox. The same inputs reproduce the street plan, buildings, rooms and aggregate population byte-identically. The same ordered interaction history reproduces every instanced NPC. An LLM layer writes names, NPC types and stories, and a three.js WebGPU client plays the result first person at street level.
 
-The project is ten boxes, each an independent repository coupled only by its `CONTRACT.md`. The complete box map and dependency edges are in [docs/INDEX.md](docs/INDEX.md); the kit design is in [docs/modular-kit.md](docs/modular-kit.md).
+The project is eleven boxes, each an independent repository coupled only by its `CONTRACT.md`. The complete box map and dependency edges are in [docs/INDEX.md](docs/INDEX.md); the kit design is in [docs/modular-kit.md](docs/modular-kit.md).
 
 ## The world, layer by layer
 
@@ -30,6 +30,7 @@ git clone git@github.com:hec-ovi/urbe-population.git simulation
 git clone git@github.com:hec-ovi/urbe-namer.git naming
 git clone git@github.com:hec-ovi/urbe-quests.git quests
 git clone git@github.com:hec-ovi/urbe-engine.git engine
+git clone git@github.com:hec-ovi/urbe-voice.git voice
 ```
 
 Compose requires Docker Compose and Engine's character, animation and vehicle tree in `URBE_MODELS_DIR` (default `~/models/quaternius`). It does not download game assets. From the coordinator root, `(cd engine && npm run audit-character-assets)` verifies the game asset tree. [Game assets](#game-assets) lists every file and where to get it.
@@ -38,13 +39,15 @@ Compose requires Docker Compose and Engine's character, animation and vehicle tr
 docker compose up -d --build
 ```
 
+NPC speech runs as the `voice` profile: `voice-model` serves the Maya1 GGUF on the GPU through llama.cpp's Vulkan server and `voice` speaks lines for Engine. It needs `/dev/dri` and `maya1/maya1-q4_k_m.gguf` in `URBE_GGUF_DIR` (default `~/models/gguf`). Copy [.env.example](.env.example) to `.env` to start it with the stack (`COMPOSE_PROFILES=voice`), or add `--profile voice` to a Compose command. Engine plays without it.
+
 `docker compose ps` shows startup and health. `docker compose logs -f <service>` follows one service, and `docker compose down` stops the stack. Preview ports bind only to localhost. Each preview runs in a stock node:22 container with its box bind-mounted. `compose/box-start.sh` checks the lock hash whenever a service container starts and installs dependencies when it changed. After changing a lockfile, run `docker compose up -d --force-recreate <service>`. `docker compose down -v` also deletes those install volumes.
 
 Engine starts at its launcher and retains the saved city and game catalogs. Create a world through a size template. Its play service keeps source watching off; `docker compose restart engine` applies completed code changes.
 
-Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine catalog and its served worlds, and the Quests build. `node compose/check-launcher.mjs [small|medium|large]` creates a template city, opens free play, then saves and resumes. `node compose/play-probe.mjs <world id>` walks up to a person and chats in that world's read-only preview in a headless Brave or Chrome, and writes screenshots and a report under the OS temp dir.
+Run `./compose/check-previews.sh` after startup to verify every page, cross-box material route, the Engine catalog and its served worlds, and the Quests build. `node compose/check-launcher.mjs [small|medium|large]` creates a template city, opens free play, then saves and resumes. `node compose/check-voice.mjs` speaks one fresh line and checks its header, first audio under 2 s and real-time factor under 1.5; it skips when voice is not running. `node compose/play-probe.mjs <world id>` walks up to a person and chats in that world's read-only preview in a headless Brave or Chrome, and writes screenshots and a report under the OS temp dir.
 
-The host gate requires Node.js 22 and npm. Compose dependency volumes do not populate host `node_modules`.
+The host gate requires Node.js 22, npm and Docker. Compose dependency volumes do not populate host `node_modules`.
 
 ```sh
 for box in atlas connections exterior interior materials naming quests simulation engine; do
@@ -53,7 +56,7 @@ done
 ./compose/check-boxes.sh
 ```
 
-The gate builds Interior's portable core-feasibility entry, then runs those boxes' contract tests, type checks and production builds. Exterior reads that same compiled entry in Node and its browser preview.
+The gate builds Interior's portable core-feasibility entry, then runs those boxes' contract tests, type checks and production builds, then Voice's tests in its Docker `test` stage. Exterior reads that same compiled entry in Node and its browser preview.
 
 For cached, offline dependency installation, use `BOX_OFFLINE_INSTALL=1 docker compose up -d`. The shared npm cache persists in a Docker volume. Offline mode disables install lifecycle scripts and fails when a required package is absent from that cache. An unchanged lockfile retains its existing installation.
 
@@ -129,6 +132,8 @@ Anonymous Drive downloads can fail with "Quota exceeded"; downloading the FBX fo
 | 5305 | [Simulation](http://localhost:5305/testbed/) | Population, homes, jobs, routines, schedules, and movement testbed | `cd simulation && npm run testbed` |
 | 5306 | [Engine launcher](http://localhost:5306/) | City templates, saved games and first-person play | `cd engine && npm run play` |
 | 5307 | [Materials](http://localhost:5307/) | Material catalog and PBR sphere preview | `cd materials && npm run preview` |
+| 5308 | [Voice](http://localhost:5308/health) | NPC speech service health and cache size (profile `voice`) | `cd voice && uvicorn app:app --app-dir src --port 5308` |
+| 5309 | [Voice model](http://localhost:5309/health) | llama.cpp serving Maya1 speech tokens (profile `voice`) | `llama-server -m ~/models/gguf/maya1/maya1-q4_k_m.gguf -c 4096 -np 1 --port 5309` |
 
 The [Engine launcher](http://localhost:5306/) creates cities from Small (500 m), Medium (1000 m) or Big (3000 m) templates. Next builds streets and exteriors; Play without quests opens a saved free-play game. Interiors and story are optional. Catalog games can also carry a named blueprint and validated quest bundle. The other pages isolate one layer so geometry, data and materials can be inspected before assembly. Port 5306 defaults to WebGPU; add `&backend=webgl` to an Engine URL for its WebGL fallback.
 
@@ -149,6 +154,7 @@ The layers that only make sense as a city.
 | [urbe-namer](https://github.com/hec-ovi/urbe-namer) | naming | LLM naming pass and themed NPC type set |
 | [urbe-quests](https://github.com/hec-ovi/urbe-quests) | quests | Two-stage story authoring, typed quest flows, engine handoff and NPC dialog context |
 | [urbe-engine](https://github.com/hec-ovi/urbe-engine) | engine | three.js WebGPU assembly, kit placement tables, gameplay, transit, investigations and saves |
+| [urbe-voice](https://github.com/hec-ovi/urbe-voice) | voice | Maya1 NPC speech: a deterministic voice per NPC, streamed WAV and a bounded cache |
 
 ## The standalone toolkits
 
@@ -160,7 +166,7 @@ Three boxes solve a problem that has nothing to do with cities, so they ship und
 | [interiorforge](https://github.com/hec-ovi/interiorforge) | interior | Shared room modules and three reusable furnished layouts, plus NPC anchors, routines and nav data |
 | [pbrforge](https://github.com/hec-ovi/pbrforge) | materials | Themed PBR material library with a ComfyUI generator behind it, resolved by `theme/kind/tier` key |
 
-Data flows `atlas -> connections/base -> exterior kit -> engine placement tables`, `atlas -> streets -> engine`, `buildingforge -> connections/rooftop-spans -> engine`, and `atlas -> naming -> simulation -> quests -> engine`; pbrforge feeds the two geometry tools and the engine. Interior modules and layouts enter Engine beside the placement tables.
+Data flows `atlas -> connections/base -> exterior kit -> engine placement tables`, `atlas -> streets -> engine`, `buildingforge -> connections/rooftop-spans -> engine`, `atlas -> naming -> simulation -> quests -> engine`, and `simulation -> engine -> voice -> engine` for NPC speech; pbrforge feeds the two geometry tools and the engine. Interior modules and layouts enter Engine beside the placement tables.
 
 ## Working on a box
 

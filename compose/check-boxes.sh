@@ -17,6 +17,12 @@ build_preview() {
   (cd "$ROOT/$box" && npm exec -- vite build "$@")
 }
 
+test_image() {
+  box=$1
+  printf 'run %-12s docker build --target test\n' "$box"
+  docker build --target test "$ROOT/$box"
+}
+
 build_simulation_testbed() {
   printf 'run %-12s testbed build\n' simulation
   (cd "$ROOT/simulation" && node scripts/build-testbed.mjs)
@@ -48,5 +54,6 @@ run simulation build
 build_simulation_testbed
 run engine test
 run engine build
+test_image voice
 
 printf 'ok  all box tests and builds passed\n'

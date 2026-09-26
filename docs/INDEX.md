@@ -15,6 +15,7 @@ The [stage reader](viewer/CONTRACT.md) is a static dark HTML page with one Markd
 - [simulation](../simulation/CONTRACT.md): deterministic population identities, homes, jobs, routines, continuity and saves. Inputs: [simulation input](../simulation/src/schemas/input.ts). Depends on atlas, connections, interior, naming.
 - [naming](../naming/CONTRACT.md): themed place names, NPC type prompts, name pools and business exports. Inputs: [world](../naming/schema/world-state.schema.json). Outputs: [named world](../naming/schema/named-world.schema.json). Depends on atlas, optional simulation statistics, materials.
 - [quests](../quests/CONTRACT.md): two-stage story and gameplay authoring, typed flows, dialog context and engine handoff bundles. Inputs: [handoff](../quests/handoff/schema/handoff-input.schema.json). Depends on atlas world input, naming, simulation, engine investigation and mission-asset contracts.
+- [voice](../voice/CONTRACT.md): Maya1 NPC speech: one deterministic voice per NPC from its facts, streamed 24 kHz WAV, a byte-capped cache and one render at a time on the GPU. Inputs: [speak request](../voice/schema/speak-request.schema.json), [speaker](../voice/schema/speaker.schema.json), [prefetch](../voice/schema/prefetch-request.schema.json). Outputs: `audio/wav`, [design](../voice/schema/design-response.schema.json), [errors](../voice/schema/error.schema.json). Depends on a llama.cpp server holding the Maya1 GGUF, over HTTP; no sibling boxes.
 - [engine](../engine/CONTRACT.md): city assembly and first-person play. Ordinary parcels become Exterior placement tables; landmarks keep unique shells. Inputs: [launcher](../engine/src/server/schema/launcher-request.schema.json). Outputs: [world manifest](../engine/src/assembly/schema/world-manifest.schema.json), [kit placements](../engine/src/assembly/kit/kit-placements.schema.json). Depends on every sibling contract.
 
 ## Data flow
@@ -27,6 +28,8 @@ The [stage reader](viewer/CONTRACT.md) is a static dark HTML page with one Markd
 
 `atlas -> naming -> simulation -> quests -> engine`
 
+`simulation speaker facts -> engine -> voice -> engine -> browser audio`
+
 Interior publishes shared modules and ground/middle/crown layouts into Engine. Materials feeds streets, exterior, interior and engine. Naming may use simulation statistics, and falls back to Atlas statistics. Quests emits separate questline, objective, investigation, mission-asset, item-binding, fixed mechanic anchor and host capability documents for Engine.
 
 Plans are axis-aligned rectangles with block templates. Ordinary lots are the six standard sizes, every side a multiple of 8 m. Default city 3000 x 3000 m. Launcher sizes: Small 500 m, Medium 1000 m, Big 3000 m.
@@ -37,6 +40,8 @@ Atlas hosts blueprint jobs in a server worker and keeps its city catalog in the 
 Exterior and Engine also receive Materials binding manifests read-only for coordinated exterior styles.
 
 Engine nests the renderer-neutral mission-asset creator behind its own contract.
+
+Compose runs Voice and its Maya1 model server under the `voice` profile (`COMPOSE_PROFILES=voice` in `.env`). Engine reaches Voice at `VOICE_BASE_URL` and plays without it. `compose/check-voice.mjs` measures one fresh line.
 
 Compose prepares Streets before Engine starts; Engine reads its source, installed dependencies and Materials schemas read-only.
 

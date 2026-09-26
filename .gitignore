@@ -8,6 +8,8 @@ streets/
 naming/
 quests/
 engine/
+voice/
+.env
 CLAUDE.md
 session
 

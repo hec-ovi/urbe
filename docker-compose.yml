@@ -166,9 +166,15 @@ services:
     <<: *box
     working_dir: /work/quests
     # `npm run watch` compiles the library to dist/ (the engine's talk route imports it) and
-    # keeps it current; healthy once the build exists.
+    # keeps it current; healthy once the build exists. Story authoring runs here against the
+    # machine's OpenAI-compatible model server (LLM_BASE_URL on the host, default port 8080).
     environment:
       <<: *user
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8080/v1}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["/work/quests-start.sh"]
     volumes:
       - *install-cache
@@ -189,6 +195,8 @@ services:
     # animation and vehicle packs come from the machine's model store (URBE_MODELS_DIR on
     # the host, default ~/models/quaternius) served under /models/. NPC dialog runs on the
     # machine's OpenAI-compatible model server (LLM_BASE_URL on the host, default port 8080).
+    # NPC speech goes to the voice service when its profile runs (VOICE_BASE_URL); Engine
+    # starts without it.
     environment:
       <<: *user
       URBE_MODELS_DIR: /work/models
@@ -197,6 +205,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-60000}
+      VOICE_BASE_URL: ${VOICE_BASE_URL:-http://voice:8080}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: ["npm", "run", "play", "--", "--host", "0.0.0.0", "--port", "5306", "--strictPort"]
@@ -238,6 +247,50 @@ services:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:5307/"]
 
+  # Maya1 speech tokens on the GPU: llama.cpp's Vulkan server with the voice GGUF from the
+  # machine's model store (URBE_GGUF_DIR, default ~/models/gguf). One slot, so one line fills
+  # the 4096-token context at a time. Profile voice: COMPOSE_PROFILES=voice in .env.
+  voice-model:
+    image: ghcr.io/ggml-org/llama.cpp:server-vulkan-b11176
+    init: true
+    profiles: ["voice"]
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "${RENDER_GID:-990}"
+      - "${VIDEO_GID:-44}"
+    volumes:
+      - ${URBE_GGUF_DIR:-~/models/gguf}:/models:ro
+    command: ["--model", "/models/${URBE_VOICE_MODEL:-maya1/maya1-q4_k_m.gguf}", "--alias", "maya1",
+              "--host", "0.0.0.0", "--port", "8080", "--ctx-size", "4096", "--parallel", "1",
+              "--cache-ram", "0", "-ngl", "99"]
+    ports:
+      - "127.0.0.1:5309:8080"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+
+  # NPC speech: designs each speaker's voice, streams WAV and keeps a byte-capped cache in
+  # the voice_data volume. Profile voice.
+  voice:
+    build: ./voice
+    init: true
+    profiles: ["voice"]
+    environment:
+      MAYA1_URL: http://voice-model:8080
+      VOICE_CACHE_MAX_MB: ${VOICE_CACHE_MAX_MB:-512}
+      VOICE_ACCENTS: ${VOICE_ACCENTS:-American accent,British accent}
+    ports:
+      - "127.0.0.1:5308:8080"
+    depends_on:
+      voice-model:
+        condition: service_healthy
+    volumes:
+      - voice_data:/data
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+
 volumes:
   npm_cache:
   atlas_modules:
@@ -249,3 +302,4 @@ volumes:
   quests_modules:
   engine_modules:
   materials_modules:
+  voice_data:
