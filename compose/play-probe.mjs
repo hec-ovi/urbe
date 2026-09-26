@@ -7,8 +7,14 @@
  * used as given, except that a catalog `game=<id>` becomes the same `out`
  * preview: a probed session never saves. The page gets `&automation`, which
  * installs Engine's automation probe, and a street crowd of `--crowd` unless
- * the URL names one. `/api/launcher` is blocked, and the page's Vite socket
- * never opens, so it reports nothing to the dev server.
+ * the URL names one. Every request the page makes is screened: GET and HEAD
+ * pass, a talk line gets a stand-in reply in the browser, and anything else is
+ * refused. The page's Vite socket never opens, so it reports nothing to the dev
+ * server.
+ *
+ * The browser takes its commands on this process's DevTools pipe and quits when
+ * the pipe closes, however this process ends. SIGINT, SIGTERM and SIGHUP also
+ * write the report and remove the browser's profile first.
  *
  * Scenarios: talk and chat (the default), follow, lead.
  * Options:
@@ -17,18 +23,22 @@
  *   --browser <path>     Chromium-family binary; default URBE_BROWSER, then Brave, Chrome or Chromium on PATH
  *   --backend <mode>     webgl (default, at low quality unless the URL names one) or webgpu; headless WebGPU
  *                        offers an adapter but cannot build the city's pipelines
- *   --talk <mode>        stub (default) answers /api/talk in the browser; live lets the line reach the model
+ *   --talk <mode>        stub (default) answers talk in the browser; live lets the line reach the model, and the
+ *                        engine keeps each exchange in that world's dialogue memory until it restarts
+ *   --throwaway-engine   the engine serving the URL is a throwaway one nobody plays; --talk live on a game's out
+ *                        (/out/games) needs it
  *   --line <text>        the chat scenario's line
  *   --crowd <n>          default 120
  *   --timeout <seconds>  load limit, default 600
  *
  * Exit status: 0 every scenario passed; 1 a check failed, a scenario errored or
- * is not driven yet; 2 the game never became playable.
+ * is not driven yet; 2 the game never became playable; 128 plus the signal's
+ * number when a signal stopped the run.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { constants, tmpdir } from 'node:os';
+import { delimiter, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
@@ -40,9 +50,16 @@ const FLAGS = [
 	'--headless', '--no-sandbox', '--no-first-run', '--no-default-browser-check',
 	'--disable-background-networking', '--disable-component-update', '--mute-audio', '--hide-scrollbars',
 	'--ignore-gpu-blocklist', '--use-gl=angle', '--use-angle=vulkan', '--enable-features=Vulkan',
-	`--window-size=${VIEWPORT.width},${VIEWPORT.height}`, '--remote-debugging-port=0'
+	`--window-size=${VIEWPORT.width},${VIEWPORT.height}`, '--remote-debugging-pipe'
 ];
-const STUB_REPLY = 'I only stand in for the model. Nobody asked it.';
+const STUB_REPLY = 'I stand in for the model, which nobody asked.';
+/** The stand-in answer for each talk endpoint: the whole reply, or the stream's events. */
+const TALK_STUBS = {
+	'/api/talk': stub( 'application/json', JSON.stringify( { reply: STUB_REPLY } ) ),
+	'/api/talk/stream': stub( 'application/x-ndjson', [
+		{ type: 'delta', text: STUB_REPLY }, { type: 'sentence', index: 0, text: STUB_REPLY }, { type: 'done', reply: STUB_REPLY }
+	].map( ( event ) => `${JSON.stringify( event )}\n` ).join( '' ) )
+};
 /** The look fields the crowd bakes and the focused body is dressed with. */
 const LOOK = [ 'body', 'hairStyle', 'skin', 'shirt', 'trousers', 'hair', 'sleeve', 'hem' ];
 /** No page socket to Vite: frame reports and console lines stay in the page. */
@@ -79,7 +96,7 @@ const SCENARIOS = {
 			if ( approached.target?.person !== person.id ) continue;
 			before = approached.person;
 			shots.add( await shot( 'talk-street' ) );
-			conversation = await probe( `converse(${JSON.stringify( person.id )})` );
+			( { conversation } = await probe( 'press()' ) );
 			if ( conversation ) break;
 
 		}
@@ -90,6 +107,8 @@ const SCENARIOS = {
 		if ( ! conversation ) return { checks, shots: [ ...shots ], data: { people } };
 
 		const after = await probe( 'appearance()' );
+		checks.push( check( 'the conversation stays open', Boolean( after ) ) );
+		if ( ! after ) return { checks, shots: [ ...shots ], data: { before, conversation } };
 		await sleep( 800 );
 		shots.add( await shot( 'talk-conversation' ) );
 		const { feet } = await probe( 'state()' );
@@ -144,73 +163,92 @@ async function main() {
 
 	const options = parse( process.argv.slice( 2 ) );
 	const url = playUrl( options );
+	const played = posix.resolve( '/', url.searchParams.get( 'out' ) ?? '' );
+	if ( options.talk === 'live' && played.startsWith( '/out/games/' ) && ! options[ 'throwaway-engine' ] ) {
+
+		fail( `--talk live would leave this probe's lines in ${played}'s dialogue memory on the engine serving it; run it against a throwaway engine and pass --throwaway-engine` );
+
+	}
 	const out = outputDir( options.out );
 	const report = {
-		started: new Date().toISOString(), target: options.target, talk: options.talk, scenarios: [],
+		started: new Date().toISOString(), target: options.target, url: url.href, talk: options.talk, scenarios: [],
 		talkRequests: [], blocked: [], console: []
 	};
 	let session = null;
+	let signal = null;
 	let status = 2;
 
-	// However the run ends, the browser and its profile go with it.
 	process.once( 'exit', () => session?.kill() );
-	process.once( 'SIGINT', () => process.exit( 130 ) );
+	const stopped = new Promise( ( _, stop ) => {
+
+		for ( const name of [ 'SIGINT', 'SIGTERM', 'SIGHUP' ] ) process.once( name, () => stop( new Error( `stopped by ${signal = name}` ) ) );
+
+	} );
 
 	try {
 
-		session = await Browser.launch( options.browser );
-		report.browser = session.version;
-		report.url = url.href;
-		console.log( `probe: ${url.href}` );
-		console.log( `output: ${out}` );
-
-		const page = await session.open( options.talk );
-		watch( page, report );
-		await page.send( 'Page.addScriptToEvaluateOnNewDocument', { source: QUIET_VITE } );
-		await page.send( 'Emulation.setDeviceMetricsOverride', { ...VIEWPORT, deviceScaleFactor: 1, mobile: false } );
-		await page.navigate( url.href );
-		report.ready = await playable( page, options.timeout );
-		console.log( `playable in ${report.ready.seconds} s: ${report.ready.state.backend} ${report.ready.state.tier}, ${report.ready.state.crowd} people` );
-
-		const context = {
-			options, talk: report.talkRequests,
-			probe: ( call ) => page.evaluate( `window.urbe.automation.${call}` ),
-			shot: async ( name ) => {
-
-				await page.screenshot( join( out, `${name}.png` ) );
-				return `${name}.png`;
-
-			}
-		};
-		status = 0;
-		for ( const name of options.scenarios ) {
-
-			const started = Date.now();
-			const result = await SCENARIOS[ name ]( context ).catch( ( error ) => ( { error: error.message } ) );
-			const outcome = result.error ? 'error' : result.unsupported ? 'unsupported'
-				: result.checks?.length && result.checks.every( ( item ) => item.ok ) ? 'pass' : 'fail';
-			if ( outcome !== 'pass' ) status = 1;
-			report.scenarios.push( { name, status: outcome, seconds: ( Date.now() - started ) / 1000, ...result } );
-			console.log( `${name}: ${outcome}${result.error ? ` (${result.error})` : result.unsupported ? ` (${result.unsupported})` : ''}` );
-			for ( const item of result.checks ?? [] ) if ( ! item.ok ) console.log( `  failed: ${item.name} ${JSON.stringify( item.detail ?? {} )}` );
-
-		}
+		session = new Browser( browserPath( options.browser ) );
+		status = await Promise.race( [ play( session, url, out, options, report ), stopped ] );
 
 	} catch ( error ) {
 
 		report.error = error.message;
 		console.error( `probe: ${error.message}` );
-		await session?.page?.screenshot( join( out, 'failed.png' ) ).catch( () => {} );
+		if ( ! signal ) await session?.page?.screenshot( join( out, 'failed.png' ) ).catch( () => {} );
 
 	} finally {
 
 		report.finished = new Date().toISOString();
-		writeFileSync( join( out, 'report.json' ), JSON.stringify( report, null, '\t' ) + '\n' );
+		writeFileSync( join( out, 'report.json' ), `${JSON.stringify( report, null, '\t' )}\n` );
 		await session?.close();
 
 	}
 	console.log( `report: ${join( out, 'report.json' )}` );
-	process.exit( status );
+	process.exit( signal ? 128 + constants.signals[ signal ] : status );
+
+}
+
+/** Opens the game, waits until it plays and runs each scenario; the exit status, 0 or 1. */
+async function play( session, url, out, options, report ) {
+
+	await session.started;
+	report.browser = session.version;
+	console.log( `probe: ${url.href}` );
+	console.log( `output: ${out}` );
+
+	const page = await session.open();
+	watch( page, report, options.talk );
+	await page.send( 'Page.addScriptToEvaluateOnNewDocument', { source: QUIET_VITE } );
+	await page.send( 'Emulation.setDeviceMetricsOverride', { ...VIEWPORT, deviceScaleFactor: 1, mobile: false } );
+	await page.navigate( url.href );
+	report.ready = await playable( page, options.timeout );
+	console.log( `playable in ${report.ready.seconds} s: ${report.ready.state.backend} ${report.ready.state.tier}, ${report.ready.state.crowd} people` );
+
+	const context = {
+		options, talk: report.talkRequests,
+		probe: ( call ) => page.evaluate( `window.urbe.automation.${call}` ),
+		shot: async ( name ) => {
+
+			await page.screenshot( join( out, `${name}.png` ) );
+			return `${name}.png`;
+
+		}
+	};
+	let status = 0;
+	for ( const name of options.scenarios ) {
+
+		const started = Date.now();
+		const result = await SCENARIOS[ name ]( context ).catch( ( error ) => ( { error: error.message } ) );
+		const outcome = result.error ? 'error' : result.unsupported ? 'unsupported'
+			: result.checks?.length && result.checks.every( ( item ) => item.ok ) ? 'pass' : 'fail';
+		if ( outcome !== 'pass' ) status = 1;
+		report.scenarios.push( { name, status: outcome, seconds: ( Date.now() - started ) / 1000, ...result } );
+		console.log( `${name}: ${outcome}${result.error ? ` (${result.error})` : result.unsupported ? ` (${result.unsupported})` : ''}` );
+		for ( const item of result.checks ?? [] ) if ( ! item.ok ) console.log( `  failed: ${item.name} ${JSON.stringify( item.detail ?? {} )}` );
+
+	}
+
+	return status;
 
 }
 
@@ -219,7 +257,8 @@ function parse( argv ) {
 	const { values, positionals } = parseArgs( { args: argv, allowPositionals: true, options: {
 		out: { type: 'string' }, base: { type: 'string', default: 'http://localhost:5306' },
 		browser: { type: 'string' }, backend: { type: 'string', default: 'webgl' },
-		talk: { type: 'string', default: 'stub' }, line: { type: 'string', default: 'Hi. What do you do around here?' },
+		talk: { type: 'string', default: 'stub' }, 'throwaway-engine': { type: 'boolean', default: false },
+		line: { type: 'string', default: 'Hi. What do you do around here?' },
 		crowd: { type: 'string', default: '120' }, timeout: { type: 'string', default: '600' }
 	} } );
 	const [ target, ...named ] = positionals;
@@ -235,7 +274,7 @@ function parse( argv ) {
 	].filter( Boolean );
 	if ( problems.length ) {
 
-		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [follow] [lead] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--line text] [--crowd n] [--timeout seconds]` );
+		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [follow] [lead] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--crowd n] [--timeout seconds]` );
 		process.exit( 2 );
 
 	}
@@ -288,11 +327,18 @@ function outputDir( requested ) {
 
 }
 
-/** Records blocked launcher calls, talk requests, console warnings, page errors and failed responses into `report`. */
-function watch( page, report ) {
+/**
+ * Screens every request: GET and HEAD pass, a talk line is stubbed (or let
+ * through when `talk` is live), anything else is refused. Records refused
+ * requests, talk requests, console warnings, page errors and failed responses
+ * into `report`.
+ */
+function watch( page, report, talk ) {
 
 	const at = () => ( Date.now() - Date.parse( report.started ) ) / 1000;
 	const log = ( entry ) => { if ( report.console.length < 300 ) report.console.push( { at: at(), ...entry } ); };
+	/** Live talk requests awaiting their response, by network id. */
+	const live = new Map();
 	page.on( 'Runtime.consoleAPICalled', ( { type, args } ) => {
 
 		if ( [ 'error', 'warning', 'assert' ].includes( type ) ) log( { type, text: args.map( ( arg ) => arg.value ?? arg.description ?? '' ).join( ' ' ).slice( 0, 600 ) } );
@@ -301,37 +347,45 @@ function watch( page, report ) {
 	page.on( 'Runtime.exceptionThrown', ( { exceptionDetails } ) => log( {
 		type: 'exception', text: String( exceptionDetails.exception?.description ?? exceptionDetails.text ).slice( 0, 600 )
 	} ) );
-	page.on( 'Network.responseReceived', ( { response } ) => {
+	page.on( 'Network.responseReceived', ( { requestId, response } ) => {
 
+		const entry = live.get( requestId );
+		if ( entry ) entry.status = response.status;
+		live.delete( requestId );
 		if ( response.status >= 400 ) log( { type: 'http', text: `${response.status} ${response.url}` } );
 
 	} );
-	page.on( 'Fetch.requestPaused', ( { requestId, request, responseStatusCode } ) => {
+	page.on( 'Fetch.requestPaused', ( { requestId, networkId, request } ) => {
 
+		const { method } = request;
 		const path = new URL( request.url ).pathname;
-		if ( path.startsWith( '/api/launcher' ) ) {
+		const answer = method === 'POST' ? TALK_STUBS[ path ] : undefined;
+		if ( answer ) {
 
-			report.blocked.push( { at: at(), request: `${request.method} ${path}` } );
-			return page.send( 'Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' } );
+			const entry = { at: at(), path, ...talkRequest( request ) };
+			report.talkRequests.push( entry );
+			if ( talk === 'live' ) {
+
+				live.set( networkId, entry );
+				return page.send( 'Fetch.continueRequest', { requestId } );
+
+			}
+			Object.assign( entry, { status: 200, stubbed: true } );
+			return page.send( 'Fetch.fulfillRequest', { requestId, responseCode: 200, ...answer } );
 
 		}
-		const entry = { at: at(), path, ...talkRequest( request ) };
-		report.talkRequests.push( entry );
-		if ( responseStatusCode !== undefined ) {
-
-			entry.status = responseStatusCode;
-			return page.send( 'Fetch.continueRequest', { requestId } );
-
-		}
-		entry.status = 200;
-		entry.stubbed = true;
-		return page.send( 'Fetch.fulfillRequest', {
-			requestId, responseCode: 200,
-			responseHeaders: [ { name: 'Content-Type', value: 'application/json' } ],
-			body: Buffer.from( JSON.stringify( { reply: STUB_REPLY } ) ).toString( 'base64' )
-		} );
+		if ( method === 'GET' || method === 'HEAD' ) return page.send( 'Fetch.continueRequest', { requestId } );
+		report.blocked.push( { at: at(), request: `${method} ${path}` } );
+		return page.send( 'Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' } );
 
 	} );
+
+}
+
+/** A fulfilled response's headers and base64 body. */
+function stub( type, body ) {
+
+	return { responseHeaders: [ { name: 'Content-Type', value: type } ], body: Buffer.from( body ).toString( 'base64' ) };
 
 }
 
@@ -406,6 +460,16 @@ function sleep( milliseconds ) {
 
 }
 
+/** `promise`, or a rejection once `milliseconds` pass first. */
+function within( promise, milliseconds ) {
+
+	let timer;
+	const late = new Promise( ( _, failed ) => { timer = setTimeout( () => failed( new Error( `no answer within ${milliseconds / 1000} s` ) ), milliseconds ); } );
+
+	return Promise.race( [ promise, late ] ).finally( () => clearTimeout( timer ) );
+
+}
+
 function fail( message ) {
 
 	console.error( `play-probe: ${message}` );
@@ -424,67 +488,37 @@ function browserPath( requested ) {
 
 }
 
-/** One headless browser process driven over the DevTools protocol, with a throwaway profile. */
+/** One headless browser on a throwaway profile, driven over its DevTools pipe. */
 class Browser {
 
-	static async launch( requested ) {
+	constructor( binary ) {
 
-		const binary = browserPath( requested );
-		const profile = mkdtempSync( join( tmpdir(), 'urbe-play-probe-profile-' ) );
-		// Its own process group, so one signal takes every helper process with it.
-		const child = spawn( binary, [ ...FLAGS, `--user-data-dir=${profile}`, 'about:blank' ], { detached: true, stdio: [ 'ignore', 'ignore', 'pipe' ] } );
-		const browser = new Browser( child, profile );
-		const endpoint = await new Promise( ( found, failed ) => {
-
-			let tail = '';
-			const timer = setTimeout( () => failed( new Error( `${binary} opened no DevTools endpoint: ${tail}` ) ), 30000 );
-			child.once( 'error', failed );
-			child.once( 'exit', ( code ) => failed( new Error( `${binary} exited with ${code}: ${tail}` ) ) );
-			child.stderr.on( 'data', ( chunk ) => {
-
-				tail = ( tail + chunk ).slice( - 2000 );
-				const match = tail.match( /DevTools listening on (ws:\/\/\S+)/ );
-				if ( match ) {
-
-					clearTimeout( timer );
-					found( match[ 1 ] );
-
-				}
-
-			} );
-
-		} ).catch( ( error ) => {
-
-			browser.kill();
-			throw error;
-
+		this.profile = mkdtempSync( join( tmpdir(), 'urbe-play-probe-profile-' ) );
+		// Its own process group, so closing takes every helper process with it.
+		this.child = spawn( binary, [ ...FLAGS, `--user-data-dir=${this.profile}`, 'about:blank' ], {
+			detached: true, stdio: [ 'ignore', 'ignore', 'pipe', 'pipe', 'pipe' ]
 		} );
-		browser.cdp = await Cdp.connect( endpoint );
-		browser.version = ( await browser.cdp.send( 'Browser.getVersion' ) ).product;
-
-		return browser;
-
-	}
-
-	constructor( child, profile ) {
-
-		this.child = child;
-		this.profile = profile;
+		this.cdp = new Cdp( this.child.stdio[ 3 ], this.child.stdio[ 4 ] );
 		this.page = null;
+		let tail = '';
+		this.child.stderr.on( 'data', ( chunk ) => { tail = ( tail + chunk ).slice( - 2000 ); } );
+		this.child.on( 'error', ( error ) => { tail += error.message; } );
+		/** Settles once the browser answers, with `version` set. */
+		this.started = within( this.cdp.send( 'Browser.getVersion' ), 30000 ).then(
+			( { product } ) => { this.version = product; },
+			( error ) => { throw new Error( `${binary} did not start: ${error.message}${tail && `\n${tail.trim()}`}` ); }
+		);
 
 	}
 
-	/** A new tab with its runtime, page and network interception attached; `talk` live lets /api/talk through. */
-	async open( talk ) {
+	/** A new tab with its runtime, page, network and request screening attached. */
+	async open() {
 
 		const { targetId } = await this.cdp.send( 'Target.createTarget', { url: 'about:blank' } );
 		const { sessionId } = await this.cdp.send( 'Target.attachToTarget', { targetId, flatten: true } );
 		const page = this.page = new Page( this.cdp, sessionId );
 		await Promise.all( [ 'Runtime.enable', 'Page.enable', 'Network.enable' ].map( ( method ) => page.send( method ) ) );
-		await page.send( 'Fetch.enable', { patterns: [
-			{ urlPattern: '*/api/launcher*', requestStage: 'Request' },
-			{ urlPattern: '*/api/talk*', requestStage: talk === 'live' ? 'Response' : 'Request' }
-		] } );
+		await page.send( 'Fetch.enable', { patterns: [ { urlPattern: '*', requestStage: 'Request' } ] } );
 
 		return page;
 
@@ -492,8 +526,8 @@ class Browser {
 
 	async close() {
 
-		const exited = new Promise( ( done ) => this.child.exitCode === null ? this.child.once( 'exit', done ) : done() );
-		await this.cdp?.send( 'Browser.close' ).catch( () => {} );
+		const exited = new Promise( ( done ) => this.child.exitCode === null && this.child.signalCode === null ? this.child.once( 'exit', done ) : done() );
+		await this.cdp.send( 'Browser.close' ).catch( () => {} );
 		await Promise.race( [ exited, sleep( 5000 ) ] );
 		this.kill();
 
@@ -544,7 +578,7 @@ class Page {
 
 		this.cdp.on( method, ( params, sessionId ) => {
 
-			if ( sessionId === this.sessionId ) Promise.resolve( listener( params ) ).catch( ( error ) => console.error( `${method}: ${error.message}` ) );
+			if ( sessionId === this.sessionId ) ( async () => listener( params ) )().catch( ( error ) => console.error( `${method}: ${error.message}` ) );
 
 		} );
 
@@ -582,48 +616,54 @@ class Page {
 
 }
 
-/** The DevTools protocol over one browser socket, with flat sessions per tab. */
+/** The DevTools protocol over the browser's pipe, one NUL-ended JSON message each way, with flat sessions per tab. */
 class Cdp {
 
-	static async connect( url ) {
+	/** `input` is the browser's command pipe, `output` its message pipe. */
+	constructor( input, output ) {
 
-		const socket = new WebSocket( url );
-		await new Promise( ( open, failed ) => {
-
-			socket.onopen = open;
-			socket.onerror = () => failed( new Error( `no DevTools connection at ${url}` ) );
-
-		} );
-
-		return new Cdp( socket );
-
-	}
-
-	constructor( socket ) {
-
-		this.socket = socket;
+		this.input = input;
+		this.open = true;
 		this.next = 0;
 		this.calls = new Map();
 		this.listeners = new Map();
-		socket.onmessage = ( event ) => this.#receive( JSON.parse( event.data ) );
-		socket.onclose = () => {
+		let pending = [];
+		output.setEncoding( 'utf8' );
+		// A chunk continues the pending message; each NUL ends one and starts the next.
+		output.on( 'data', ( chunk ) => {
 
+			const [ more, ...next ] = chunk.split( '\0' );
+			pending.push( more );
+			for ( const part of next ) {
+
+				this.#receive( JSON.parse( pending.join( '' ) ) );
+				pending = [ part ];
+
+			}
+
+		} );
+		const closed = () => {
+
+			this.open = false;
 			for ( const { failed, method } of this.calls.values() ) failed( new Error( `${method}: the browser closed` ) );
 			this.calls.clear();
 
 		};
+		output.on( 'close', closed );
+		output.on( 'error', closed );
+		input.on( 'error', closed );
 
 	}
 
 	send( method, params = {}, sessionId = undefined ) {
 
-		if ( this.socket.readyState !== WebSocket.OPEN ) return Promise.reject( new Error( `${method}: the browser closed` ) );
+		if ( ! this.open ) return Promise.reject( new Error( `${method}: the browser closed` ) );
 
 		return new Promise( ( done, failed ) => {
 
 			const id = ++ this.next;
 			this.calls.set( id, { done, failed, method } );
-			this.socket.send( JSON.stringify( { id, method, params, ...( sessionId ? { sessionId } : {} ) } ) );
+			this.input.write( `${JSON.stringify( { id, method, params, ...( sessionId ? { sessionId } : {} ) } )}\0` );
 
 		} );
 
