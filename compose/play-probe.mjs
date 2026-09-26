@@ -8,8 +8,9 @@
  * preview: a probed session never saves. The page gets `&automation`, which
  * installs Engine's automation probe, and a street crowd of `--crowd` unless
  * the URL names one. Every request the page makes is screened: GET and HEAD
- * pass, a talk line gets a stand-in reply in the browser, NPC speech reaches
- * /api/voice only while the voice scenario runs, and anything else is refused.
+ * pass, a talk line gets a stand-in reply in the browser, NPC speech and the
+ * cancel of lines rendered ahead reach /api/voice only while the voice scenario
+ * runs, and anything else is refused.
  * Without the voice scenario the page gets `voice=off` unless the URL names
  * it, so the other scenarios put nothing on the voice GPU. The page's Vite
  * socket never opens, so it reports nothing to the dev server.
@@ -21,6 +22,11 @@
  * Scenarios: talk and chat (the default), voice, follow, lead. voice speaks a
  * person's first line and the reply to a chat line through the engine's Voice
  * box and page audio (muted); it needs the Voice box running behind the engine.
+ * follow asks the nearest people with the chat's 'Come with me' until one comes
+ * along, walks away and watches them close the gap, then lets them go with
+ * 'You can go now'. lead asks for the nearest place someone offers to show,
+ * walks behind them on their own path until the talk about the place opens by
+ * itself, and leaves it; both then watch the person go back to their day.
  * Options:
  *   --out <dir>          screenshots and report.json; default a new folder under the OS temp dir, never inside this checkout
  *   --base <url>         Engine origin for a world id, default http://localhost:5306
@@ -35,8 +41,8 @@
  *   --crowd <n>          default 120
  *   --timeout <seconds>  load limit, default 600
  *
- * Exit status: 0 every scenario passed; 1 a check failed, a scenario errored or
- * is not driven yet; 2 the game never became playable; 128 plus the signal's
+ * Exit status: 0 every scenario passed; 1 a check failed or a scenario errored;
+ * 2 the game never became playable; 128 plus the signal's
  * number when a signal stopped the run.
  */
 import { spawn } from 'node:child_process';
@@ -66,12 +72,23 @@ const TALK_STUBS = {
 		{ type: 'delta', text: STUB_REPLY }, { type: 'sentence', index: 0, text: STUB_REPLY }, { type: 'done', reply: STUB_REPLY }
 	].map( ( event ) => `${JSON.stringify( event )}\n` ).join( '' ) )
 };
-/** NPC speech routes, which pass only while the voice scenario runs. */
+/** NPC speech routes, which pass only while the voice scenario runs: a line, a batch rendered ahead, and the cancel of a batch under its group. */
 const VOICE_PATHS = new Set( [ '/api/voice', '/api/voice/prefetch' ] );
+const VOICE_CANCEL = '/api/voice/prefetch/';
 /** How long a line may take to start playing: a render queued behind another on a busy GPU. */
 const VOICE_WAIT_MS = 120000;
 /** The look fields the crowd bakes and the focused body is dressed with: body is the crowd variant's mesh. */
 const LOOK = [ 'body', 'hairStyle', 'skin', 'shirt', 'trousers', 'hair', 'eyebrows', 'sleeve', 'hem' ];
+/** How many of the nearest people follow and lead ask along before they give up. */
+const ASKED = 12;
+/** A place a lead may show lies at most this straight distance away, so the walk there fits the run. */
+const LEAD_REACH = 300;
+/** How long the walk behind a leader may take, at 1.4 m/s along the pavement. */
+const LEAD_WAIT_MS = 480000;
+/** How close a follower comes: it stops 1.8 m from the player. */
+const FOLLOW_NEAR = 2.5;
+/** Continuity modes of somebody on their way back into their day, or in it. */
+const BACK_TO_DAY = [ 'resuming', 'schedule' ];
 /** How many of the nearest people the talk scenario walks up to: hair colours near the pack's grey hide a bug in one sample. */
 const TALKS = 6;
 /** Conversations the talk scenario needs before its checks count. */
@@ -215,15 +232,74 @@ const SCENARIOS = {
 
 	},
 
-	async follow( { probe } ) {
+	/**
+	 * Asks the nearest people with the chat's 'Come with me' until one comes
+	 * along, stands 12 to 20 m away and watches them close the gap, then lets
+	 * them go with 'You can go now' and watches them go back to their day.
+	 */
+	async follow( { probe, shot } ) {
 
-		return hook( await probe( 'follow()' ) );
+		const asked = await askAlong( probe, ( offers ) => offers.find( ( offer ) => offer.kind === 'follow' && offer.available ) );
+		const checks = [ check( 'someone agrees to come along from the chat action', Boolean( asked.companion ), { tried: asked.tried } ) ];
+		if ( ! asked.companion ) return { checks, data: asked };
+
+		const { npcId } = asked.companion;
+		const away = await probe( `standAway(${JSON.stringify( npcId )})` );
+		const samples = await companionUntil( probe, ( companion ) => ! companion || companion.distance <= FOLLOW_NEAR && companion.walk === 'waiting', 40000 );
+		const last = samples.at( - 1 );
+		const shots = [ await shot( 'follow' ) ];
+		const dismissed = await dismiss( probe, npcId );
+		checks.push(
+			check( 'the chat closes and the person follows', asked.companion.kind === 'follow' && samples.every( ( sample ) => sample?.mode === 'following' ), { first: samples[ 0 ] } ),
+			check( 'the player stands 12 to 20 m away', away.placed && away.distance >= 12, away ),
+			check( 'the follower closes the gap and waits beside the player', last?.distance <= FOLLOW_NEAR && last.walk === 'waiting',
+				{ from: away.distance, to: last?.distance ?? null, walk: last?.walk ?? null } ),
+			check( 'the follower walks on the way', samples.some( ( sample ) => sample?.walk === 'walking' ), { walks: samples.map( ( sample ) => sample?.walk ) } ),
+			check( '"You can go now" lets the follower go', Boolean( dismissed.acted?.clicked ) && dismissed.companion === null, dismissed ),
+			check( 'the person goes back to their day', BACK_TO_DAY.includes( dismissed.person?.mode ), dismissed.person )
+		);
+
+		return { checks, shots, data: { asked, away, samples, dismissed } };
 
 	},
 
-	async lead( { probe } ) {
+	/**
+	 * Asks the nearest people to show a place until one leads the way to the
+	 * nearest they offer, walks behind them on the path they take, and checks
+	 * that the talk about the place opens by itself when they arrive, with the
+	 * place in the talk request. Leaving it, the person goes back to their day.
+	 */
+	async lead( { probe, shot, talk } ) {
 
-		return hook( await probe( 'lead()' ) );
+		const asked = await askAlong( probe, ( offers ) => offers
+			.filter( ( offer ) => offer.kind === 'lead' && offer.available && offer.distance !== null && offer.distance <= LEAD_REACH )
+			.sort( ( a, b ) => a.distance - b.distance )[ 0 ] );
+		const checks = [ check( 'someone agrees to show a place from the chat action', Boolean( asked.companion ), { tried: asked.tried } ) ];
+		if ( ! asked.companion ) return { checks, data: asked };
+
+		const { npcId } = asked.companion;
+		const sent = talk.length;
+		const trailed = await probe( `trail(${JSON.stringify( npcId )}, { timeoutMs: ${LEAD_WAIT_MS} })` );
+		const spoken = await until( () => probe( 'state()' ), ( state ) => state.chat.lines.some( ( line ) => line.from === 'npc' ) || ! state.chat.sending && state.chat.lines.length > 0, 10000 );
+		const requests = talk.slice( sent );
+		const shots = [ await shot( 'lead-arrival' ) ];
+		const walked = trailed.samples.filter( ( sample ) => sample.destination?.distance !== null );
+		const left = await probe( 'leave()' );
+		const ended = await until( () => probe( 'companion()' ), ( companion ) => companion === null, 5000 );
+		const person = await until( () => probe( `person(${JSON.stringify( npcId )})` ), ( held ) => BACK_TO_DAY.includes( held?.mode ), 5000 );
+		checks.push(
+			check( 'the chat closes and the person leads', asked.companion.kind === 'lead' && trailed.samples.every( ( sample ) => sample.mode === 'leading' ), { first: trailed.samples[ 0 ] } ),
+			check( 'the way to the place shrinks', walked.length > 1 && walked.at( - 1 ).destination.distance < walked[ 0 ].destination.distance,
+				{ from: walked[ 0 ]?.destination.distance ?? null, to: walked.at( - 1 )?.destination.distance ?? null, seconds: trailed.ms / 1000 } ),
+			check( 'the leader arrives', trailed.companion?.walk === 'arrived', trailed.companion ),
+			check( 'the talk about the place opens by itself with the leader', trailed.conversation?.npcId === npcId, trailed.conversation ),
+			check( 'the talk request carries the place', requests.some( ( request ) => request.guide?.placeId ), requests ),
+			check( 'the leader speaks first, unasked', spoken.chat.lines[ 0 ]?.from === 'npc', spoken.chat.lines ),
+			check( 'leaving the talk lets the leader go', left.conversation === null && ended === null, ended ),
+			check( 'the person goes back to their day', BACK_TO_DAY.includes( person?.mode ), person )
+		);
+
+		return { checks, shots, data: { asked, trailed, requests, lines: spoken.chat.lines, person } };
 
 	}
 
@@ -309,11 +385,10 @@ async function play( session, url, out, options, report ) {
 
 		const started = Date.now();
 		const result = await SCENARIOS[ name ]( context ).catch( ( error ) => ( { error: error.message } ) );
-		const outcome = result.error ? 'error' : result.unsupported ? 'unsupported'
-			: result.checks?.length && result.checks.every( ( item ) => item.ok ) ? 'pass' : 'fail';
+		const outcome = result.error ? 'error' : result.checks?.length && result.checks.every( ( item ) => item.ok ) ? 'pass' : 'fail';
 		if ( outcome !== 'pass' ) status = 1;
 		report.scenarios.push( { name, status: outcome, seconds: ( Date.now() - started ) / 1000, ...result } );
-		console.log( `${name}: ${outcome}${result.error ? ` (${result.error})` : result.unsupported ? ` (${result.unsupported})` : ''}` );
+		console.log( `${name}: ${outcome}${result.error ? ` (${result.error})` : ''}` );
 		for ( const item of result.checks ?? [] ) if ( ! item.ok ) console.log( `  failed: ${item.name} ${JSON.stringify( item.detail ?? {} )}` );
 
 	}
@@ -460,7 +535,7 @@ function watch( page, report, { talk, scenarios } ) {
 			return page.send( 'Fetch.fulfillRequest', { requestId, responseCode: 200, ...answer } );
 
 		}
-		if ( method === 'POST' && speaks && VOICE_PATHS.has( path ) ) {
+		if ( speaks && ( method === 'POST' && VOICE_PATHS.has( path ) || method === 'DELETE' && path.startsWith( VOICE_CANCEL ) ) ) {
 
 			const entry = { at: at(), path };
 			report.voiceRequests.push( entry );
@@ -483,14 +558,17 @@ function stub( type, body ) {
 
 }
 
-/** What one talk request carried: the line, the person and which fields describe them. */
+/** What one talk request carried: the line, the person, which fields describe them, and any place they led the player to and offers they may make. */
 function talkRequest( request ) {
 
 	const text = request.postData ?? ( request.postDataEntries ?? [] ).map( ( entry ) => Buffer.from( entry.bytes ?? '', 'base64' ).toString() ).join( '' );
 	try {
 
-		const { line, npc, behavior } = JSON.parse( text );
-		return { line, npcId: npc?.npcId ?? null, npcFields: Object.keys( npc ?? {} ).sort(), behavior: behavior?.mode ?? null };
+		const { line, npc, behavior, guide, offers } = JSON.parse( text );
+		return {
+			line, npcId: npc?.npcId ?? null, npcFields: Object.keys( npc ?? {} ).sort(), behavior: behavior?.mode ?? null,
+			...( guide ? { guide } : {} ), ...( offers ? { offers } : {} )
+		};
 
 	} catch {
 
@@ -550,10 +628,83 @@ function each( name, talks, compare ) {
 
 }
 
-/** A scenario hook the probe does not drive yet. */
-function hook( answer ) {
+/**
+ * Opens a conversation with each of the nearest people in turn until one
+ * agrees to the offer `choose` picks from what they offer, chosen from the
+ * chat's actions. `{ companion, offer, tried }`, companion null when nobody came.
+ */
+async function askAlong( probe, choose ) {
 
-	return answer?.supported === false ? { unsupported: answer.reason, data: answer } : { data: answer, checks: [] };
+	// A conversation an earlier scenario left open owns E.
+	if ( ( await probe( 'state()' ) ).conversation ) await probe( 'leave()' );
+	const tried = [];
+	for ( const person of await probe( `people({ limit: ${ASKED} })` ) ) {
+
+		const conversation = await probe( `converse(${JSON.stringify( person.id )}, { attempts: 1 })` );
+		if ( ! conversation ) continue;
+		const offers = conversation.npcId ? await probe( 'offers()' ) : [];
+		const offer = choose( offers );
+		tried.push( { id: person.id, npcId: conversation.npcId, offers: offers.map( ( item ) => ( { label: item.label, reason: item.reason, distance: item.distance } ) ), chose: offer?.label ?? null } );
+		const acted = offer ? await probe( `act(${JSON.stringify( offer.offerId )})` ) : null;
+		// Refused, the person says why and the chat stays open.
+		if ( ! acted || acted.conversation ) {
+
+			await probe( 'leave()' );
+			continue;
+
+		}
+		const companion = await until( () => probe( 'companion()' ), ( current ) => current?.npcId === conversation.npcId && current.mode !== null, 5000 );
+		if ( companion?.npcId === conversation.npcId ) return { companion, offer, tried };
+
+	}
+
+	return { companion: null, tried };
+
+}
+
+/** Talks to the companion `npcId` again and lets them go with 'You can go now'. */
+async function dismiss( probe, npcId ) {
+
+	const id = ( await probe( `person(${JSON.stringify( npcId )})` ) )?.id ?? null;
+	const conversation = id ? await probe( `converse(${JSON.stringify( id )})` ) : null;
+	const acted = conversation ? await probe( 'act("dismiss")' ) : null;
+	const companion = await until( () => probe( 'companion()' ), ( current ) => current === null, 5000 );
+	const person = await until( () => probe( `person(${JSON.stringify( npcId )})` ), ( held ) => BACK_TO_DAY.includes( held?.mode ), 5000 );
+
+	return { conversation, acted, companion, person };
+
+}
+
+/** The companion every half second until `done` holds for it or `milliseconds` pass. */
+async function companionUntil( probe, done, milliseconds ) {
+
+	const samples = [];
+	const started = Date.now();
+	do {
+
+		samples.push( await probe( 'companion()' ) );
+		if ( done( samples.at( - 1 ) ) ) break;
+		await sleep( 500 );
+
+	} while ( Date.now() - started < milliseconds );
+
+	return samples;
+
+}
+
+/** `read()` every quarter second until `done` holds for its value or `milliseconds` pass; the last value. */
+async function until( read, done, milliseconds ) {
+
+	const started = Date.now();
+	let value = await read();
+	while ( ! done( value ) && Date.now() - started < milliseconds ) {
+
+		await sleep( 250 );
+		value = await read();
+
+	}
+
+	return value;
 
 }
 
