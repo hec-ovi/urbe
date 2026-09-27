@@ -1027,14 +1027,22 @@ async function footingOf( probe, id ) {
 
 }
 
-/** A check that every standing sample of each named person's feet is within FOOTING of the ground under them; a seated one sits on its seat. */
+/**
+ * A check that each named person's feet were measured at least once and that
+ * every standing sample is within FOOTING of the ground under them. A seated
+ * sample sits on its seat and is only counted; a person with no sample at all
+ * (gone, never found) fails, since nothing was learnt about their feet.
+ */
 function grounded( name, people ) {
 
-	const standing = people.flatMap( ( [ id, samples ] ) => ( samples ?? [] ).filter( ( footing ) => footing && ! footing.seated ).map( ( footing ) => ( { id, ...footing } ) ) );
+	const measured = people.map( ( [ id, samples ] ) => [ id ?? null, ( samples ?? [] ).filter( Boolean ) ] );
+	const unmeasured = measured.filter( ( [ , samples ] ) => ! samples.length ).map( ( [ id ] ) => id );
+	const standing = measured.flatMap( ( [ id, samples ] ) => samples.filter( ( footing ) => ! footing.seated ).map( ( footing ) => ( { id, ...footing } ) ) );
+	const seated = measured.reduce( ( count, [ , samples ] ) => count + samples.filter( ( footing ) => footing.seated ).length, 0 );
 	const off = standing.filter( ( footing ) => footing.gap === null || Math.abs( footing.gap ) > FOOTING )
 		.map( ( { id, feet, ground, gap } ) => ( { id, feet, ground, gap } ) );
 
-	return check( name, off.length === 0, { off, standing: standing.length } );
+	return check( name, off.length === 0 && unmeasured.length === 0, { off, unmeasured, standing: standing.length, seated } );
 
 }
 
