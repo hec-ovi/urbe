@@ -22,14 +22,19 @@
  * the pipe closes, however this process ends. SIGINT, SIGTERM and SIGHUP also
  * write the report and remove the browser's profile first.
  *
- * Scenarios: talk and chat (the default), voice, follow, lead, scene, story, ui. voice speaks a
+ * Scenarios: talk and chat (the default), spawn, voice, follow, lead, scene, story, ui. spawn
+ * checks that the player stands on the ground where the game put them, holds
+ * still on the pause menu, where the world holds, and stands on the ground
+ * again when play goes on. voice speaks a
  * person's first line and the reply to a chat line through the engine's Voice
  * box and page audio (muted); it needs the Voice box running behind the engine.
  * follow asks the nearest people with the chat's 'Come with me' until one comes
  * along, walks away and watches them close the gap, then lets them go with
  * 'You can go now'. lead asks for the nearest place someone offers to show,
- * walks behind them on their own path until the talk about the place opens by
- * itself, and leaves it; both then watch the person go back to their day.
+ * reads where the game says they are taking the player, walks behind them on
+ * their own path until the talk about the place opens by itself at the
+ * doorstep, and leaves it; both then watch the person go back to their day,
+ * their feet on the ground as after every talk.
  * scene stands the player at the edge of each quest scene the preview stages
  * at quest start, or the one --scene names, and screenshots it once it stands.
  * A preview starts its quests fresh, so a scene a later step stages stays
@@ -60,9 +65,10 @@
  *   --backend <mode>     webgl (default, at low quality unless the URL names one) or webgpu; headless WebGPU
  *                        offers an adapter but cannot build the city's pipelines
  *   --talk <mode>        stub (default) answers talk in the browser; live lets the line reach the model, and the
- *                        engine keeps each exchange in that world's dialogue memory until it restarts
- *   --throwaway-engine   the engine serving the URL is a throwaway one nobody plays; --talk live on a game's out
- *                        (/out/games) needs it
+ *                        engine keeps each exchange in that world's dialogue memory, a game's also in the game's
+ *                        dialogue-memory.json, where it outlives a restart
+ *   --throwaway-engine   the engine serving the URL is a throwaway one nobody plays, with engine/out mounted
+ *                        read-only; --talk live on a game's out (/out/games) needs it
  *   --line <text>        the chat scenario's line
  *   --scene <id>         the scene scenario's scene; default every one staged
  *   --advance-to <step>  the scene scenario first fast-forwards the story until this step is active
@@ -120,6 +126,10 @@ const LEAD_WAIT_MS = 480000;
 const FOLLOW_NEAR = 2.5;
 /** Continuity modes of somebody on their way back into their day, or in it. */
 const BACK_TO_DAY = [ 'resuming', 'schedule' ];
+/** How far feet may stand off the ground under them, in metres: the controller's own 0.02 m skin and a little. */
+const FOOTING = 0.05;
+/** How long a person just let go is watched walking back into their day. */
+const WALK_OFF_MS = 2000;
 /** How long a visited scene may take to stand: an indoor one waits for its floor to load first. */
 const SCENE_WAIT_MS = 30000;
 /** How long a story step may take to open, and its people to come or its place to load. */
@@ -137,6 +147,8 @@ const RELEASE = 'game.input.handlers.pointerlockchange()';
 const GRANT = 'game.input.onLockChange( window.urbe.input.locked = true )';
 /** The world clock in seconds; the probe's state rounds it to whole minutes. */
 const CLOCK = 'game.clock.seconds';
+/** The notices on screen now, as the player reads them. */
+const NOTICES = '[ ...game.view.toast.element.querySelectorAll( \'.toast-text\' ) ].map( ( line ) => line.textContent )';
 /** How many of the nearest people the talk scenario walks up to: hair colours near the pack's grey hide a bug in one sample. */
 const TALKS = 6;
 /** Conversations the talk scenario needs before its checks count. */
@@ -194,6 +206,7 @@ const SCENARIOS = {
 			}
 			await probe( 'leave()' );
 			talked.after = await probe( `appearance(${JSON.stringify( { id: conversation.person } )})` );
+			talked.feet = await walkOff( probe, conversation.person );
 
 		}
 		const opened = talks.filter( ( talked ) => talked.conversation && talked.during );
@@ -212,7 +225,8 @@ const SCENARIOS = {
 			each( 'the focused body wears the crowd look', opened, ( talked ) => [ talked.during.crowd, talked.during.hero ?? {}, LOOK ] ),
 			each( 'the crowd look holds after the talk', opened, ( talked ) => [ talked.before, talked.after?.crowd ?? {}, [ 'seed', ...LOOK ] ] ),
 			each( 'a focused body left showing them still wears it', opened.filter( ( talked ) => talked.after?.hero ),
-				( talked ) => [ talked.after.crowd, talked.after.hero, LOOK ] )
+				( talked ) => [ talked.after.crowd, talked.after.hero, LOOK ] ),
+			grounded( 'each person walks off the talk with their feet on the ground', opened.map( ( talked ) => [ talked.id, talked.feet ] ) )
 		);
 
 		return { checks, shots, data: { people, talks } };
@@ -237,6 +251,43 @@ const SCENARIOS = {
 		);
 
 		return { checks, shots: [ await shot( 'chat' ) ], data: { conversation, said, requests } };
+
+	},
+
+	/**
+	 * The player where the game put them: standing on the ground, held still
+	 * on the pause menu while the world holds (the pointer lost on the street,
+	 * as a new game opens), and standing on the ground when play goes on.
+	 */
+	async spawn( { probe, shot } ) {
+
+		const start = await probe( 'footing()' );
+		await probe( RELEASE );
+		const held = [];
+		for ( let sample = 0; sample < 6; sample ++ ) {
+
+			await sleep( 500 );
+			held.push( ( await probe( 'footing()' ) ).feet[ 1 ] );
+
+		}
+		const paused = ! await probe( 'game.view.pause.element.hidden' );
+		const shots = [ await shot( 'spawn-paused' ) ];
+		await probe( 'game.view.pause.buttons.get( \'resume\' ).click()' );
+		await probe( GRANT );
+		await sleep( 1500 );
+		const played = await probe( 'footing()' );
+		shots.push( await shot( 'spawn-played' ) );
+		const standing = ( footing ) => footing?.gap !== null && Math.abs( footing.gap ) <= FOOTING;
+
+		return {
+			checks: [
+				check( 'the player starts standing on the ground', standing( start ), start ),
+				check( 'the pointer lost on the street pauses', paused ),
+				check( 'the player holds still while the world holds', held.every( ( y ) => y === start.feet[ 1 ] ), { start: start.feet[ 1 ], held } ),
+				check( 'the player stands on the ground when play goes on', standing( played ), played )
+			],
+			shots, data: { start, held, played }
+		};
 
 	},
 
@@ -295,6 +346,7 @@ const SCENARIOS = {
 		const away = await probe( `standAway(${JSON.stringify( npcId )})` );
 		const samples = await companionUntil( probe, ( companion ) => ! companion || companion.distance <= FOLLOW_NEAR && companion.walk === 'waiting', 40000 );
 		const last = samples.at( - 1 );
+		const footing = await footingOf( probe, ( await probe( `person(${JSON.stringify( npcId )})` ) )?.id );
 		const shots = [ await shot( 'follow' ) ];
 		const dismissed = await dismiss( probe, npcId );
 		checks.push(
@@ -303,11 +355,13 @@ const SCENARIOS = {
 			check( 'the follower closes the gap and waits beside the player', last?.distance <= FOLLOW_NEAR && last.walk === 'waiting',
 				{ from: away.distance, to: last?.distance ?? null, walk: last?.walk ?? null } ),
 			check( 'the follower walks on the way', samples.some( ( sample ) => sample?.walk === 'walking' ), { walks: samples.map( ( sample ) => sample?.walk ) } ),
+			grounded( 'the follower stands on the ground', [ [ npcId, [ footing ] ] ] ),
 			check( '"You can go now" lets the follower go', Boolean( dismissed.acted?.clicked ) && dismissed.companion === null, dismissed ),
-			check( 'the person goes back to their day', BACK_TO_DAY.includes( dismissed.person?.mode ), dismissed.person )
+			check( 'the person goes back to their day', BACK_TO_DAY.includes( dismissed.person?.mode ), dismissed.person ),
+			grounded( 'the person walks off with their feet on the ground', [ [ npcId, dismissed.feet ] ] )
 		);
 
-		return { checks, shots, data: { asked, away, samples, dismissed } };
+		return { checks, shots, data: { asked, away, samples, footing, dismissed } };
 
 	},
 
@@ -326,28 +380,37 @@ const SCENARIOS = {
 		if ( ! asked.companion ) return { checks, data: asked };
 
 		const { npcId } = asked.companion;
+		const place = asked.offer.destination.name;
+		const setOff = await probe( NOTICES );
 		const sent = talk.length;
 		const trailed = await probe( `trail(${JSON.stringify( npcId )}, { timeoutMs: ${LEAD_WAIT_MS} })`, LEAD_WAIT_MS + PAGE_MS );
 		const spoken = await until( () => probe( 'state()' ), ( state ) => state.chat.lines.some( ( line ) => line.from === 'npc' ) || ! state.chat.sending && state.chat.lines.length > 0, 10000 );
+		const arrival = { notices: await probe( NOTICES ), footing: await footingOf( probe, trailed.conversation?.person ) };
 		const requests = talk.slice( sent );
 		const shots = [ await shot( 'lead-arrival' ) ];
 		const walked = trailed.samples.filter( ( sample ) => sample.destination?.distance !== null );
 		const left = await probe( 'leave()' );
 		const ended = await until( () => probe( 'companion()' ), ( companion ) => companion === null, 5000 );
 		const person = await until( () => probe( `person(${JSON.stringify( npcId )})` ), ( held ) => BACK_TO_DAY.includes( held?.mode ), 5000 );
+		const feet = await walkOff( probe, person?.id );
 		checks.push(
 			check( 'the chat closes and the person leads', asked.companion.kind === 'lead' && trailed.samples.every( ( sample ) => sample.mode === 'leading' ), { first: trailed.samples[ 0 ] } ),
 			check( 'the way to the place shrinks', walked.length > 1 && walked.at( - 1 ).destination.distance < walked[ 0 ].destination.distance,
 				{ from: walked[ 0 ]?.destination.distance ?? null, to: walked.at( - 1 )?.destination.distance ?? null, seconds: trailed.ms / 1000 } ),
+			check( 'the player reads where the leader is taking them', setOff.some( ( text ) => text.includes( place ) ), { place, notices: setOff } ),
 			check( 'the leader arrives', trailed.companion?.walk === 'arrived', trailed.companion ),
+			check( 'the leader stops at the place\'s doorstep', trailed.companion?.destination?.distance <= 0.5, trailed.companion?.destination ),
+			check( 'the player reads that they have arrived there', arrival.notices.some( ( text ) => text.includes( place ) && text !== setOff.find( ( seen ) => seen.includes( place ) ) ), { place, notices: arrival.notices } ),
+			grounded( 'the leader stands on the ground at the place', [ [ npcId, [ arrival.footing ] ] ] ),
 			check( 'the talk about the place opens by itself with the leader', trailed.conversation?.npcId === npcId, trailed.conversation ),
 			check( 'the talk request carries the place', requests.some( ( request ) => request.guide?.placeId ), requests ),
 			check( 'the leader speaks first, unasked', spoken.chat.lines[ 0 ]?.from === 'npc', spoken.chat.lines ),
 			check( 'leaving the talk lets the leader go', left.conversation === null && ended === null, ended ),
-			check( 'the person goes back to their day', BACK_TO_DAY.includes( person?.mode ), person )
+			check( 'the person goes back to their day', BACK_TO_DAY.includes( person?.mode ), person ),
+			grounded( 'the person walks off with their feet on the ground', [ [ npcId, feet ] ] )
 		);
 
-		return { checks, shots, data: { asked, trailed, requests, lines: spoken.chat.lines, person } };
+		return { checks, shots, data: { asked, setOff, trailed, arrival, requests, lines: spoken.chat.lines, person, feet } };
 
 	},
 
@@ -545,7 +608,7 @@ async function main() {
 	const played = posix.resolve( '/', url.searchParams.get( 'out' ) ?? '' );
 	if ( options.talk === 'live' && played.startsWith( '/out/games/' ) && ! options[ 'throwaway-engine' ] ) {
 
-		fail( `--talk live would leave this probe's lines in ${played}'s dialogue memory on the engine serving it; run it against a throwaway engine and pass --throwaway-engine` );
+		fail( `--talk live would leave this probe's lines in ${played}'s dialogue memory, on the engine serving it and in the game's dialogue-memory.json; run it against a throwaway engine with engine/out mounted read-only and pass --throwaway-engine` );
 
 	}
 	const out = outputDir( options.out );
@@ -653,7 +716,7 @@ function parse( argv ) {
 	].filter( Boolean );
 	if ( problems.length ) {
 
-		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [voice] [follow] [lead] [scene] [story] [ui] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--advance-to step] [--quest id] [--crowd n] [--timeout seconds]` );
+		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [spawn] [voice] [follow] [lead] [scene] [story] [ui] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--advance-to step] [--quest id] [--crowd n] [--timeout seconds]` );
 		process.exit( 2 );
 
 	}
@@ -936,8 +999,42 @@ async function dismiss( probe, npcId ) {
 	const acted = conversation ? await probe( 'act("dismiss")' ) : null;
 	const companion = await until( () => probe( 'companion()' ), ( current ) => current === null, 5000 );
 	const person = await until( () => probe( `person(${JSON.stringify( npcId )})` ), ( held ) => BACK_TO_DAY.includes( held?.mode ), 5000 );
+	const feet = await walkOff( probe, person?.id );
 
-	return { conversation, acted, companion, person };
+	return { conversation, acted, companion, person, feet };
+
+}
+
+/** Where crowd member `id`'s feet stand while they walk off, sampled a few times over WALK_OFF_MS: their `footing`s, without the ones they are gone for. */
+async function walkOff( probe, id ) {
+
+	const samples = [];
+	for ( let sample = 0; id && sample < 4; sample ++ ) {
+
+		await sleep( WALK_OFF_MS / 4 );
+		const footing = await footingOf( probe, id );
+		if ( footing ) samples.push( footing );
+
+	}
+	return samples;
+
+}
+
+/** Where crowd member `id`'s feet stand against the ground, or null without such a member. */
+async function footingOf( probe, id ) {
+
+	return id ? probe( `footing(${JSON.stringify( id )})` ) : null;
+
+}
+
+/** A check that every standing sample of each named person's feet is within FOOTING of the ground under them; a seated one sits on its seat. */
+function grounded( name, people ) {
+
+	const standing = people.flatMap( ( [ id, samples ] ) => ( samples ?? [] ).filter( ( footing ) => footing && ! footing.seated ).map( ( footing ) => ( { id, ...footing } ) ) );
+	const off = standing.filter( ( footing ) => footing.gap === null || Math.abs( footing.gap ) > FOOTING )
+		.map( ( { id, feet, ground, gap } ) => ( { id, feet, ground, gap } ) );
+
+	return check( name, off.length === 0, { off, standing: standing.length } );
 
 }
 
