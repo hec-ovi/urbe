@@ -549,9 +549,9 @@ const SCENARIOS = {
 			marked: await probe( 'game.view.dialog.choices.querySelectorAll( \'.chat-choice-commits\' ).length' ),
 			commits: quest.active.find( ( step ) => step.stepId === first.stepId )?.choices?.filter( ( choice ) => choice.completesStep ).length ?? 0
 		} : null;
-		const subtitle = await probe( '({ text: game.view.dialog.sayText.data, whole: game.view.dialog.sayAccessible.textContent, revealing: game.view.dialog.reveal.active })' );
+		const subtitle = { text: await probe( 'game.view.dialog.sayText.data' ), whole: await probe( 'game.view.dialog.sayAccessible.textContent' ), revealing: await probe( 'game.view.dialog.reveal.active' ) };
 		await probe( 'game.view.dialog.said.click()' );
-		const completed = await probe( '({ text: game.view.dialog.sayText.data, revealing: game.view.dialog.reveal.active })' );
+		const completed = { text: await probe( 'game.view.dialog.sayText.data' ), revealing: await probe( 'game.view.dialog.reveal.active' ) };
 		shots.push( await shot( 'ui-chat' ) );
 		checks.push( check( 'the subtitle contains speech and click completes its reveal', completed.text === subtitle.whole && ! completed.revealing && subtitle.whole.startsWith( subtitle.text ), { subtitle, completed } ) );
 		if ( chat.hint.available ) {
@@ -559,7 +559,12 @@ const SCENARIOS = {
 			await probe( `game.view.dialog.element.dispatchEvent( new KeyboardEvent( 'keydown', { key: 'h', bubbles: true } ) )` );
 			await sleep( 300 );
 			const opened = ( await probe( 'state()' ) ).chat.hint;
-			const card = await probe( `(() => { const hint = game.view.dialog.hint; const box = hint.panel.getBoundingClientRect(); return { visible: !hint.panel.hidden, focused: document.activeElement === hint.close, journal: !hint.journal.hidden, fits: box.left >= 0 && box.top >= 0 && box.right <= innerWidth && box.bottom <= innerHeight }; })()` );
+			const bounds = await probe( 'game.view.dialog.hint.panel.getBoundingClientRect().toJSON()' );
+			const card = {
+				visible: ! await probe( 'game.view.dialog.hint.panel.hidden' ), focused: await probe( 'game.view.dialog.hint.close.matches( \':focus\' )' ),
+				journal: ! await probe( 'game.view.dialog.hint.journal.hidden' ),
+				fits: bounds.left >= 0 && bounds.top >= 0 && bounds.right <= VIEWPORT.width && bounds.bottom <= VIEWPORT.height
+			};
 			checks.push( check( 'H opens readable context and marks it read', opened.open && ! opened.unread && card.visible && card.focused && card.fits, { opened, card } ) );
 			shots.push( await shot( 'ui-chat-hint' ) );
 			await probe( `game.view.dialog.hint.close.dispatchEvent( new KeyboardEvent( 'keydown', { key: 'Escape', bubbles: true } ) )` );
