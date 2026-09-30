@@ -53,7 +53,9 @@
  * ui opens a conversation with the main story's first person when it opens
  * with a talk, else with the nearest person, with the developer readouts off
  * (details=off): context starts folded in the H hint, speech reveals under
- * the name and a click completes it. H and Escape close only the hint, and
+ * the name, a click completes it, and a subsequent answer types again with
+ * Space completing it from the reply row. Replies stay clear of speech. H
+ * and Escape close only the hint, and
  * the card holds the scene and stakes. It presses Escape in the talk, N with
  * the pointer free, then Escape on the street: the chat closes without the
  * pause menu, N brings the menu, the menu comes up on the street with the
@@ -540,9 +542,16 @@ const SCENARIOS = {
 		const checks = [ check( 'a conversation is open', Boolean( conversation ), { story: first, reached } ) ];
 		if ( ! conversation ) return { checks };
 
-		await sleep( 800 );
-		const shots = [ await shot( 'ui-chat-typing' ) ];
 		const { chat } = await probe( 'state()' );
+		const layoutBefore = await talkLayout( probe );
+		await sleep( 350 );
+		const subtitle = ( await probe( 'state()' ) ).chat.subtitle;
+		const layoutDuring = await talkLayout( probe );
+		const shots = [ await shot( 'ui-chat-typing' ) ];
+		if ( chat.subtitle.whole ) checks.push(
+			check( 'the opening speech grows progressively', grew( chat.subtitle, subtitle ), { before: chat.subtitle, after: subtitle } ),
+			check( 'the badge stays still and replies do not cover speech', clearSpeech( layoutBefore ) && clearSpeech( layoutDuring ) && Math.abs( layoutBefore.badge.top - layoutDuring.badge.top ) < 1, { before: layoutBefore, after: layoutDuring } )
+		);
 		const opening = await currentOpening( probe );
 		const header = await probe( 'game.view.dialog.element.querySelector( \'#conversation-name\' ).textContent' );
 		const story = reached?.offered ? {
@@ -550,9 +559,8 @@ const SCENARIOS = {
 			marked: await probe( 'game.view.dialog.choices.querySelectorAll( \'.chat-choice-commits\' ).length' ),
 			commits: quest.active.find( ( step ) => step.stepId === first.stepId )?.choices?.filter( ( choice ) => choice.completesStep ).length ?? 0
 		} : null;
-		const subtitle = { text: await probe( 'game.view.dialog.sayText.data' ), whole: await probe( 'game.view.dialog.sayAccessible.textContent' ), revealing: await probe( 'game.view.dialog.reveal.active' ) };
 		await probe( 'game.view.dialog.said.click()' );
-		const completed = { text: await probe( 'game.view.dialog.sayText.data' ), revealing: await probe( 'game.view.dialog.reveal.active' ) };
+		const completed = ( await probe( 'state()' ) ).chat.subtitle;
 		shots.push( await shot( 'ui-chat' ) );
 		checks.push( check( 'the subtitle contains speech and click completes its reveal', completed.text === subtitle.whole && ! completed.revealing && subtitle.whole.startsWith( subtitle.text ), { subtitle, completed } ) );
 		if ( chat.hint.available ) {
@@ -574,6 +582,21 @@ const SCENARIOS = {
 			await probe( `game.view.dialog.element.dispatchEvent( new KeyboardEvent( 'keydown', { key: 'h', bubbles: true } ) )` );
 			await probe( `game.view.dialog.element.dispatchEvent( new KeyboardEvent( 'keydown', { key: 'h', bubbles: true } ) )` );
 			checks.push( check( 'H closes the hint without ending the talk', !( await probe( 'state()' ) ).chat.hint.open && Boolean( ( await probe( 'state()' ) ).conversation ) ) );
+		}
+		// A question produces another authored line without accepting the story decision.
+		const question = reached?.offered && quest.active.find( step => step.stepId === first.stepId )?.choices?.find( choice => ! choice.completesStep && chat.choices.some( shown => ! shown.disabled && shown.text === choice.text ) );
+		if ( question ) {
+			const answer = await probe( `choose(${JSON.stringify( question.text )})` );
+			await sleep( 350 );
+			const next = ( await probe( 'state()' ) ).chat.subtitle;
+			checks.push( check( 'the next NPC line also types progressively', answer.clicked && grew( answer.chat.subtitle, next ), { before: answer.chat.subtitle, after: next } ) );
+			shots.push( await shot( 'ui-chat-next-typing' ) );
+			await probe( 'game.view.dialog.choices.querySelector( \'button:not(:disabled)\' ).focus()' );
+			const keydown = await probe( `game.view.dialog.choices.querySelector( 'button:not(:disabled)' ).dispatchEvent( new KeyboardEvent( 'keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true } ) )` );
+			await probe( `game.view.dialog.choices.querySelector( 'button:not(:disabled)' ).dispatchEvent( new KeyboardEvent( 'keyup', { key: ' ', code: 'Space', bubbles: true, cancelable: true } ) )` );
+			const skipped = ( await probe( 'state()' ) ).chat;
+			checks.push( check( 'Space completes speech from a focused reply without selecting it', ! keydown && ! skipped.subtitle.revealing && skipped.subtitle.text === next.whole && skipped.lines.length === answer.chat.lines.length, { subtitle: skipped.subtitle, linesBefore: answer.chat.lines.length, linesAfter: skipped.lines.length } ) );
+			shots.push( await shot( 'ui-chat-next-complete' ) );
 		}
 		await probe( 'game.view.dialog.setTalkOpen( true )' );
 		await sleep( 300 );
@@ -910,6 +933,31 @@ function prober( page, trace ) {
 		}
 
 	};
+
+}
+
+/** A reveal must begin incomplete and add characters without changing the complete line. */
+function grew( before, after ) {
+
+	return before.revealing && before.text.length < before.whole.length && before.whole === after.whole &&
+		after.text.length > before.text.length && after.whole.startsWith( after.text );
+
+}
+
+/** The speech and reply columns, and the badge whose position should stay steady while text grows. */
+async function talkLayout( probe ) {
+
+	return {
+		speech: await probe( 'game.view.dialog.said.getBoundingClientRect().toJSON()' ),
+		options: await probe( 'game.view.dialog.choices.parentElement.getBoundingClientRect().toJSON()' ),
+		badge: await probe( 'game.view.dialog.badge.getBoundingClientRect().toJSON()' )
+	};
+
+}
+
+function clearSpeech( { speech, options } ) {
+
+	return options.width === 0 || speech.right <= options.left || speech.left >= options.right || speech.bottom <= options.top || speech.top >= options.bottom;
 
 }
 
