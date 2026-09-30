@@ -550,7 +550,7 @@ const SCENARIOS = {
 		const shots = [ await shot( 'ui-chat-typing' ) ];
 		if ( chat.subtitle.whole ) checks.push(
 			check( 'the opening speech grows progressively', grew( chat.subtitle, subtitle ), { before: chat.subtitle, after: subtitle } ),
-			check( 'the badge stays still and replies do not cover speech', clearSpeech( layoutBefore ) && clearSpeech( layoutDuring ) && Math.abs( layoutBefore.badge.top - layoutDuring.badge.top ) < 1, { before: layoutBefore, after: layoutDuring } )
+			check( 'the speaker layout reserves speech space and replies do not cover it', clearSpeech( layoutBefore ) && clearSpeech( layoutDuring ) && Math.abs( layoutBefore.speaker.top - layoutDuring.speaker.top ) < 1 && Math.abs( layoutBefore.speech.height - layoutDuring.speech.height ) < 1, { before: layoutBefore, after: layoutDuring } )
 		);
 		const opening = await currentOpening( probe );
 		const header = await probe( 'game.view.dialog.element.querySelector( \'#conversation-name\' ).textContent' );
@@ -944,13 +944,13 @@ function grew( before, after ) {
 
 }
 
-/** The speech and reply columns, and the badge whose position should stay steady while text grows. */
+/** The reserved speech and speaker layout, outside the badge's finite entrance transform. */
 async function talkLayout( probe ) {
 
 	return {
 		speech: await probe( 'game.view.dialog.said.getBoundingClientRect().toJSON()' ),
 		options: await probe( 'game.view.dialog.choices.parentElement.getBoundingClientRect().toJSON()' ),
-		badge: await probe( 'game.view.dialog.badge.getBoundingClientRect().toJSON()' )
+		speaker: await probe( 'game.view.dialog.badge.parentElement.getBoundingClientRect().toJSON()' )
 	};
 
 }
