@@ -52,12 +52,13 @@
  * Each scene a step stages is visited, checked and screenshot as scene does.
  * ui opens a conversation with the main story's first person when it opens
  * with a talk, else with the nearest person, with the developer readouts off
- * (details=off): a story talk opens on its scene, says why it matters and
- * marks the reply that moves the story on. It presses Escape in it, N with
+ * (details=off): context starts folded in the H hint, speech reveals under
+ * the name and a click completes it. H and Escape close only the hint, and
+ * the card holds the scene and stakes. It presses Escape in the talk, N with
  * the pointer free, then Escape on the street: the chat closes without the
  * pause menu, N brings the menu, the menu comes up on the street with the
  * clock and the crowd holding still, and Resume plays on. It screenshots the
- * chat, the street after it and the menu.
+ * speech, the hint, free talk, actions, the street after it and the menu.
  * Options:
  *   --out <dir>          screenshots and report.json; default a new folder under the OS temp dir, never inside this checkout
  *   --base <url>         Engine origin for a world id, default http://localhost:5306
@@ -540,7 +541,7 @@ const SCENARIOS = {
 		if ( ! conversation ) return { checks };
 
 		await sleep( 800 );
-		const shots = [ await shot( 'ui-chat' ) ];
+		const shots = [ await shot( 'ui-chat-typing' ) ];
 		const { chat } = await probe( 'state()' );
 		const header = await probe( 'game.view.dialog.element.querySelector( \'#conversation-name\' ).textContent' );
 		const story = reached?.offered ? {
@@ -548,6 +549,32 @@ const SCENARIOS = {
 			marked: await probe( 'game.view.dialog.choices.querySelectorAll( \'.chat-choice-commits\' ).length' ),
 			commits: quest.active.find( ( step ) => step.stepId === first.stepId )?.choices?.filter( ( choice ) => choice.completesStep ).length ?? 0
 		} : null;
+		const subtitle = await probe( '({ text: game.view.dialog.sayText.data, whole: game.view.dialog.sayAccessible.textContent, revealing: game.view.dialog.reveal.active })' );
+		await probe( 'game.view.dialog.said.click()' );
+		const completed = await probe( '({ text: game.view.dialog.sayText.data, revealing: game.view.dialog.reveal.active })' );
+		shots.push( await shot( 'ui-chat' ) );
+		checks.push( check( 'the subtitle contains speech and click completes its reveal', completed.text === subtitle.whole && ! completed.revealing && subtitle.whole.startsWith( subtitle.text ), { subtitle, completed } ) );
+		if ( chat.hint.available ) {
+			checks.push( check( 'conversation context starts folded', ! chat.hint.open && chat.hint.unread, chat.hint ) );
+			await probe( `game.view.dialog.element.dispatchEvent( new KeyboardEvent( 'keydown', { key: 'h', bubbles: true } ) )` );
+			await sleep( 300 );
+			const opened = ( await probe( 'state()' ) ).chat.hint;
+			const card = await probe( `(() => { const hint = game.view.dialog.hint; const box = hint.panel.getBoundingClientRect(); return { visible: !hint.panel.hidden, focused: document.activeElement === hint.close, journal: !hint.journal.hidden, fits: box.left >= 0 && box.top >= 0 && box.right <= innerWidth && box.bottom <= innerHeight }; })()` );
+			checks.push( check( 'H opens readable context and marks it read', opened.open && ! opened.unread && card.visible && card.focused && card.fits, { opened, card } ) );
+			shots.push( await shot( 'ui-chat-hint' ) );
+			await probe( `game.view.dialog.hint.close.dispatchEvent( new KeyboardEvent( 'keydown', { key: 'Escape', bubbles: true } ) )` );
+			const closed = await probe( 'state()' );
+			checks.push( check( 'Escape closes the hint and keeps the conversation open', ! closed.chat.hint.open && closed.chat.open && Boolean( closed.conversation ), closed.chat.hint ) );
+			await probe( `game.view.dialog.element.dispatchEvent( new KeyboardEvent( 'keydown', { key: 'h', bubbles: true } ) )` );
+			await probe( `game.view.dialog.element.dispatchEvent( new KeyboardEvent( 'keydown', { key: 'h', bubbles: true } ) )` );
+			checks.push( check( 'H closes the hint without ending the talk', !( await probe( 'state()' ) ).chat.hint.open && Boolean( ( await probe( 'state()' ) ).conversation ) ) );
+		}
+		await probe( 'game.view.dialog.setTalkOpen( true )' );
+		await sleep( 300 );
+		shots.push( await shot( 'ui-chat-free-talk' ) );
+		await probe( 'game.view.dialog.setTalkOpen( false )' );
+		await probe( 'game.view.dialog.asks.open = true' );
+		shots.push( await shot( 'ui-chat-actions' ) );
 		const details = [ await probe( 'game.view.readout.element.hidden' ), await probe( 'game.view.stats.element.hidden' ) ];
 		await probe( RELEASE );
 		await probe( 'game.view.dialog.input.dispatchEvent( new KeyboardEvent( \'keydown\', { key: \'Escape\', code: \'Escape\', bubbles: true } ) )' );
@@ -581,8 +608,8 @@ const SCENARIOS = {
 		checks.push(
 			check( 'the chat names who is talking', header === conversation.name, { header, name: conversation.name } ),
 			...( story ? [
-				check( 'a story talk opens on its scene, then the person speaks', chat.lines[ 0 ]?.from === 'scene' && chat.lines[ 1 ]?.from === 'npc', chat.lines.slice( 0, 2 ) ),
-				check( 'the story says why the talk matters, not to talk to the person already talked to', Boolean( story.stake ) && ! chat.story?.objective, { story: chat.story, stake: story.stake } ),
+				check( 'a story talk keeps its scene in the hint and transcript, then the person speaks', chat.lines[ 0 ]?.from === 'scene' && chat.lines[ 1 ]?.from === 'npc' && chat.hint.scene === chat.lines[ 0 ].text, chat.lines.slice( 0, 2 ) ),
+				check( 'the hint explains why this conversation matters', Boolean( story.stake ) && ! chat.story?.objective, { story: chat.story, stake: story.stake } ),
 				check( 'the reply that moves the story on is marked', story.commits > 0 && story.marked === story.commits, story )
 			] : [] ),
 			check( 'the developer readouts are off', details.every( Boolean ), { readout: details[ 0 ], stats: details[ 1 ] } ),
