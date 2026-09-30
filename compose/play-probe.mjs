@@ -543,6 +543,7 @@ const SCENARIOS = {
 		await sleep( 800 );
 		const shots = [ await shot( 'ui-chat-typing' ) ];
 		const { chat } = await probe( 'state()' );
+		const opening = await currentOpening( probe );
 		const header = await probe( 'game.view.dialog.element.querySelector( \'#conversation-name\' ).textContent' );
 		const story = reached?.offered ? {
 			stake: await probe( 'game.view.dialog.story.querySelector( \'.chat-quest-stake\' )?.textContent ?? null' ),
@@ -613,7 +614,7 @@ const SCENARIOS = {
 		checks.push(
 			check( 'the chat names who is talking', header === conversation.name, { header, name: conversation.name } ),
 			...( story ? [
-				check( 'a story talk keeps its scene in the hint and transcript, then the person speaks', chat.lines[ 0 ]?.from === 'scene' && chat.lines[ 1 ]?.from === 'npc' && chat.hint.scene === chat.lines[ 0 ].text, chat.lines.slice( 0, 2 ) ),
+				check( 'a story talk keeps its scene in the hint and transcript, then the person speaks', opening.from === 'scene' && opening.next === 'npc' && chat.hint.scene === opening.text, opening ),
 				check( 'the hint explains why this conversation matters', Boolean( story.stake ) && ! chat.story?.objective, { story: chat.story, stake: story.stake } ),
 				check( 'the reply that moves the story on is marked', story.commits > 0 && story.marked === story.commits, story )
 			] : [] ),
@@ -912,6 +913,18 @@ function prober( page, trace ) {
 
 }
 
+/** The current talk's opening, after any recalled lines the transcript keeps above it. */
+async function currentOpening( probe ) {
+
+	const first = "game.view.dialog.transcript.querySelector( '.chat-line:not(.is-earlier)' )";
+	return {
+		from: await probe( `${first}?.className.match( /\\bis-(\\w+)/ )?.[ 1 ] ?? null` ),
+		text: await probe( `${first}?.lastElementChild?.textContent ?? ''` ),
+		next: await probe( `${first}?.nextElementSibling?.className.match( /\\bis-(\\w+)/ )?.[ 1 ] ?? null` )
+	};
+
+}
+
 /** A fulfilled response's headers and base64 body. */
 function stub( type, body ) {
 
@@ -1161,13 +1174,14 @@ const PLAY = {
 		const reached = await probe( `reach(${JSON.stringify( on )})`, STEP_MS * 2 + PAGE_MS );
 		const { conversation } = reached.offered ? await probe( 'press()' ) : { conversation: null };
 		const { chat } = await probe( 'state()' );
+		const opening = await currentOpening( probe );
 		const commit = step.choices?.find( ( choice ) => choice.completesStep );
 		const chosen = conversation && commit ? await probe( `choose(${JSON.stringify( commit.text )})` ) : null;
 		record.checks.push(
 			check( 'its person stands there and E reaches them', reached.offered, reached ),
 			check( 'E opens a conversation with them', Boolean( conversation ) && conversation.npcId === step.cast[ 0 ]?.npcId, conversation ),
-			check( 'the story topic opens on its scene and its replies load', Boolean( chat.story ) && chat.lines[ 0 ]?.from === 'scene' && chat.choices.some( ( choice ) => choice.text === commit?.text && ! choice.disabled ),
-				{ story: chat.story, first: chat.lines[ 0 ], choices: chat.choices, status: chat.status } ),
+			check( 'the story topic opens on its scene and its replies load', Boolean( chat.story ) && opening.from === 'scene' && chat.choices.some( ( choice ) => choice.text === commit?.text && ! choice.disabled ),
+				{ story: chat.story, first: opening, choices: chat.choices, status: chat.status } ),
 			check( 'the committing reply is taken', Boolean( chosen?.clicked ), chosen && { status: chosen.chat.status, lines: chosen.chat.lines.slice( - 2 ) } )
 		);
 
