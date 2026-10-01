@@ -22,7 +22,7 @@
  * the pipe closes, however this process ends. SIGINT, SIGTERM and SIGHUP also
  * write the report and remove the browser's profile first.
  *
- * Scenarios: talk and chat (the default), spawn, voice, follow, lead, scene, story, ui. spawn
+ * Scenarios: talk and chat (the default), spawn, voice, follow, lead, scene, story, ui, look. spawn
  * checks that the player stands on the ground where the game put them, holds
  * still on the pause menu, where the world holds, and stands on the ground
  * again when play goes on. voice speaks a
@@ -76,6 +76,7 @@
  *   --scene <id>         the scene scenario's scene; default every one staged
  *   --advance-to <step>  the scene scenario first fast-forwards the story until this step is active
  *   --quest <id>         the questline story walks and --advance-to advances; default the main story
+ *   --shots <file>       the look scenario's shots: [{ name, at: [x, y, z], target?: [x, y, z], wait? }]
  *   --crowd <n>          default 120
  *   --timeout <seconds>  load limit, default 600
  *
@@ -84,7 +85,7 @@
  * number when a signal stopped the run.
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { constants, tmpdir } from 'node:os';
 import { delimiter, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -414,6 +415,32 @@ const SCENARIOS = {
 		);
 
 		return { checks, shots, data: { asked, setOff, trailed, arrival, requests, lines: spoken.chat.lines, person, feet } };
+
+	},
+
+	/**
+	 * Stands the player at each shot of the --shots file and screenshots it, to
+	 * review a look at chosen spots (a gutter, a lane line, a facade, a room):
+	 * `[{ name, at: [x, y, z], target?: [x, y, z], wait? }]`, `at` the feet in
+	 * world metres, `target` where the crosshair aims, `wait` the seconds to
+	 * let the place stream in and settle (default 4).
+	 */
+	async look( { probe, shot, options } ) {
+
+		if ( ! options.shots ) return { skipped: 'name the shots with --shots <file.json>' };
+		const list = JSON.parse( readFileSync( options.shots, 'utf8' ) );
+		const point = ( value ) => value ? { x: value[ 0 ], y: value[ 1 ], z: value[ 2 ] } : null;
+		const checks = [], shots = [];
+		for ( const { name, at, target = null, wait = 4 } of list ) {
+
+			const placed = await probe( `game.placePlayer(${JSON.stringify( point( at ) )}, ${JSON.stringify( point( target ) )})` );
+			await sleep( wait * 1000 );
+			shots.push( await shot( `look-${name}` ) );
+			checks.push( check( `${name}: the player stands there`, placed === true, { at, target } ) );
+
+		}
+
+		return { checks, shots };
 
 	},
 
@@ -756,7 +783,7 @@ function parse( argv ) {
 		browser: { type: 'string' }, backend: { type: 'string', default: 'webgl' },
 		talk: { type: 'string', default: 'stub' }, 'throwaway-engine': { type: 'boolean', default: false },
 		line: { type: 'string', default: 'Hi. What do you do around here?' }, scene: { type: 'string' },
-		'advance-to': { type: 'string' }, quest: { type: 'string' },
+		'advance-to': { type: 'string' }, quest: { type: 'string' }, shots: { type: 'string' },
 		crowd: { type: 'string', default: '120' }, timeout: { type: 'string', default: '600' }
 	} } );
 	const [ target, ...named ] = positionals;
@@ -772,7 +799,7 @@ function parse( argv ) {
 	].filter( Boolean );
 	if ( problems.length ) {
 
-		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [spawn] [voice] [follow] [lead] [scene] [story] [ui] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--advance-to step] [--quest id] [--crowd n] [--timeout seconds]` );
+		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [spawn] [voice] [follow] [lead] [scene] [story] [ui] [look] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--advance-to step] [--quest id] [--shots file.json] [--crowd n] [--timeout seconds]` );
 		process.exit( 2 );
 
 	}
