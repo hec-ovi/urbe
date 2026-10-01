@@ -135,6 +135,8 @@ const FOOTING = 0.05;
 /** How long a person just let go is watched walking back into their day. */
 const WALK_OFF_MS = 2000;
 /** How long a visited scene may take to stand: an indoor one waits for its floor to load first. */
+/** How long a browser may take to answer: a shared-machine wrapper may queue it behind another headless browser first. */
+const BROWSER_START_MS = Number( process.env.URBE_BROWSER_START_SECONDS ?? 1800 ) * 1000;
 const SCENE_WAIT_MS = 30000;
 /** How long a story step may take to open, and its people to come or its place to load. */
 const STEP_MS = 30000;
@@ -1422,7 +1424,7 @@ class Browser {
 		this.child.stderr.on( 'data', ( chunk ) => { tail = ( tail + chunk ).slice( - 2000 ); } );
 		this.child.on( 'error', ( error ) => { tail += error.message; } );
 		/** Settles once the browser answers, with `version` set. */
-		this.started = within( this.cdp.send( 'Browser.getVersion' ), 30000 ).then(
+		this.started = within( this.cdp.send( 'Browser.getVersion' ), BROWSER_START_MS ).then(
 			( { product } ) => { this.version = product; },
 			( error ) => { throw new Error( `${binary} did not start: ${error.message}${tail && `\n${tail.trim()}`}` ); }
 		);
