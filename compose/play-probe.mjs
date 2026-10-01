@@ -423,26 +423,29 @@ const SCENARIOS = {
 	/**
 	 * Stands the player at each shot of the --shots file and screenshots it, to
 	 * review a look at chosen spots (a gutter, a lane line, a facade, a room):
-	 * `[{ name, at: [x, y, z], target?: [x, y, z], wait? }]`, `at` the feet in
-	 * world metres, `target` where the crosshair aims, `wait` the seconds to
-	 * let the place stream in and settle (default 4).
+	 * `[{ name, at: [x, y, z], target?: [x, y, z], wait?, read? }]`, `at` the
+	 * feet in world metres, `target` where the crosshair aims, `wait` the
+	 * seconds to let the place stream in and settle (default 4), `read` a
+	 * JavaScript expression on the running game (`window.urbe`) whose JSON
+	 * value lands in the report beside the shot, to measure what it shows.
 	 */
 	async look( { probe, shot, options } ) {
 
 		if ( ! options.shots ) return { skipped: 'name the shots with --shots <file.json>' };
 		const list = JSON.parse( readFileSync( options.shots, 'utf8' ) );
 		const point = ( value ) => value ? { x: value[ 0 ], y: value[ 1 ], z: value[ 2 ] } : null;
-		const checks = [], shots = [];
-		for ( const { name, at, target = null, wait = 4 } of list ) {
+		const checks = [], shots = [], reads = {};
+		for ( const { name, at, target = null, wait = 4, read = null } of list ) {
 
 			const placed = await probe( `game.placePlayer(${JSON.stringify( point( at ) )}, ${JSON.stringify( point( target ) )})` );
 			await sleep( wait * 1000 );
 			shots.push( await shot( `look-${name}` ) );
 			checks.push( check( `${name}: the player stands there`, placed === true, { at, target } ) );
+			if ( read ) reads[ name ] = await probe( `game && JSON.parse( JSON.stringify( ( () => { const urbe = window.urbe; return ( ${read} ); } )() ?? null ) )` ).catch( ( error ) => ( { error: error.message } ) );
 
 		}
 
-		return { checks, shots };
+		return { checks, shots, data: { reads } };
 
 	},
 
