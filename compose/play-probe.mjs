@@ -22,7 +22,7 @@
  * the pipe closes, however this process ends. SIGINT, SIGTERM and SIGHUP also
  * write the report and remove the browser's profile first.
  *
- * Scenarios: talk and chat (the default), spawn, voice, follow, lead, scene, story, ui, look. spawn
+ * Scenarios: talk and chat (the default), spawn, voice, follow, lead, scene, story, ui, look, crowd. spawn
  * checks that the player stands on the ground where the game put them, holds
  * still on the pause menu, where the world holds, and stands on the ground
  * again when play goes on. voice speaks a
@@ -61,6 +61,10 @@
  * pause menu, N brings the menu, the menu comes up on the street with the
  * clock and the crowd holding still, and Resume plays on. It screenshots the
  * speech, the hint, free talk, actions, the street after it and the menu.
+ * crowd stands the player facing the busiest knot of people nearby (walkers
+ * when six or more walk together, else whoever is near, from inside their
+ * building), screenshots it wide and near, and reports how many bodies,
+ * heights, builds, tops, trousers, garment sets and hairstyles they wear.
  * Options:
  *   --out <dir>          screenshots and report.json; default a new folder under the OS temp dir, never inside this checkout
  *   --base <url>         Engine origin for a world id, default http://localhost:5306
@@ -557,6 +561,80 @@ const SCENARIOS = {
 	},
 
 	/**
+	 * Stands the player a few metres from the busiest knot of people on the
+	 * pavements around them, facing it, then nearer, and screenshots both: the
+	 * crowd's bodies and clothes side by side. Reports how many different
+	 * bodies, heights, tops, trousers and garment sets the people near the
+	 * player wear.
+	 */
+	async crowd( { probe, shot } ) {
+
+		const people = await probe( 'people({ radius: 80, limit: 80 })' );
+		if ( people.length < 3 ) return { skipped: `only ${people.length} people around` };
+		const near = ( a, b ) => Math.hypot( a.position[ 0 ] - b.position[ 0 ], a.position[ 2 ] - b.position[ 2 ] );
+		// Out on the pavements, where a knot is people walking, when there are a few.
+		const street = [];
+		for ( const person of people ) if ( await probe( `game.crowd.members.get(${JSON.stringify( person.id )})?.edge ? true : false` ) ) street.push( person );
+		const knots = ( pool ) => pool.map( ( person ) => ( { person, around: pool.filter( ( other ) => near( person, other ) < 9 ) } ) )
+			.sort( ( a, b ) => b.around.length - a.around.length )[ 0 ];
+		const walking = knots( street );
+		const knot = walking && walking.around.length >= 6 ? walking : knots( people );
+		const centre = [ 0, 1, 2 ].map( ( axis ) => knot.around.reduce( ( sum, person ) => sum + person.position[ axis ], 0 ) / knot.around.length );
+		// Stood where most of them face, so faces and fronts show.
+		let fx = 0, fz = 0;
+		for ( const person of knot.around ) {
+
+			const heading = await probe( `game.crowd.members.get(${JSON.stringify( person.id )})?.heading ?? 0` );
+			fx += Math.sin( heading );
+			fz += Math.cos( heading );
+
+		}
+		const facing = Math.atan2( fx, fz );
+		// Inside a building, the player stands inside it too.
+		const parcel = await probe( `game.crowd.members.get(${JSON.stringify( knot.person.id )})?.parcelId ?? null` );
+		const shots = [];
+		const stands = [];
+		for ( const [ name, distances ] of [ [ 'crowd-wide', [ 7, 9, 5 ] ], [ 'crowd-near', [ 3.5, 4.5, 2.5 ] ] ] ) {
+
+			let stood = null;
+			for ( const d of distances ) for ( const turn of [ 0, 0.4, - 0.4, 0.8, - 0.8, 1.2, - 1.2, 1.6, - 1.6, 2.2, - 2.2, 3.1 ] ) {
+
+				if ( stood ) break;
+				const a = facing + turn;
+				const spot = { x: centre[ 0 ] + Math.sin( a ) * d, y: centre[ 1 ] + 0.05, z: centre[ 2 ] + Math.cos( a ) * d };
+				const target = { x: centre[ 0 ], y: centre[ 1 ] + 1.1, z: centre[ 2 ] };
+				if ( parcel && ! await probe( `game.crowd.places.get(${JSON.stringify( parcel )})?.contains?.(${JSON.stringify( spot )}) ?? true` ) ) continue;
+				if ( await probe( `game.placePlayer(${JSON.stringify( spot )}, ${JSON.stringify( target )})` ) ) stood = { spot, d, a };
+
+			}
+			stands.push( stood );
+			if ( ! stood ) continue;
+			await sleep( 9000 );
+			shots.push( await shot( name ) );
+
+		}
+		const looks = people.map( ( person ) => person.look );
+		const builds = [];
+		for ( const person of people ) builds.push( await probe( `game.crowd.members.get(${JSON.stringify( person.id )})?.look?.builds ?? null` ) );
+		const distinct = ( pick ) => new Set( looks.map( ( look ) => JSON.stringify( pick( look ) ) ) ).size;
+		const variety = {
+			people: looks.length,
+			bodies: distinct( ( look ) => look.body ),
+			heights: distinct( ( look ) => look.height ),
+			tops: distinct( ( look ) => look.shirt ),
+			trousers: distinct( ( look ) => look.trousers ),
+			garments: distinct( ( look ) => look.garments ),
+			hairstyles: distinct( ( look ) => look.hairStyle ),
+			builds: new Set( builds.map( ( build ) => JSON.stringify( build && Object.values( build ).map( ( amount ) => Math.round( amount * 50 ) ) ) ) ).size
+		};
+		return {
+			checks: [ check( 'the player stands before the knot', stands.some( Boolean ), { centre, around: knot.around.length } ) ],
+			shots, data: { variety, centre, street: street.length, around: knot.around.map( ( person ) => person.id ), looks, builds }
+		};
+
+	},
+
+	/**
 	 * The conversation and pause screens as a player meets them: the main
 	 * story's first person when it opens with a talk, else the nearest person;
 	 * Escape in that conversation, N with the pointer free, then Escape on the
@@ -804,7 +882,7 @@ function parse( argv ) {
 	].filter( Boolean );
 	if ( problems.length ) {
 
-		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [spawn] [voice] [follow] [lead] [scene] [story] [ui] [look] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--advance-to step] [--quest id] [--shots file.json] [--crowd n] [--timeout seconds]` );
+		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [spawn] [voice] [follow] [lead] [scene] [story] [ui] [look] [crowd] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--advance-to step] [--quest id] [--shots file.json] [--crowd n] [--timeout seconds]` );
 		process.exit( 2 );
 
 	}
