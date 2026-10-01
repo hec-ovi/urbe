@@ -117,6 +117,12 @@ const TALK_STUB = stub( 'application/x-ndjson', [
 const PAGE_MS = 60000;
 /** How long a chat line may take to settle: the game gives up a reply that sends nothing for 90 s. */
 const SAY_MS = 120000;
+/**
+ * How long a talk waits for the focused body to show. A rig is fitted a few
+ * milliseconds a frame (the engine's frame budget), so on software WebGL's
+ * slow frames it takes a minute or two where a GPU takes a second or two.
+ */
+const FOCUSED_MS = 240000;
 /** NPC speech routes, which pass only while the voice scenario runs: a line, a batch rendered ahead, and the cancel of a batch under its group. */
 const VOICE_PATHS = new Set( [ '/api/voice', '/api/voice/prefetch' ] );
 const VOICE_CANCEL = '/api/voice/prefetch/';
@@ -205,7 +211,7 @@ const SCENARIOS = {
 			talks.push( talked );
 			if ( ! conversation ) continue;
 
-			talked.during = await probe( 'appearance()' );
+			talked.during = await probe( `appearance({ timeoutMs: ${FOCUSED_MS} })`, FOCUSED_MS + PAGE_MS );
 			if ( shots.length === 1 ) {
 
 				await sleep( 800 );
