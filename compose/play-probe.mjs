@@ -1000,6 +1000,9 @@ function talkRequest( request ) {
 
 }
 
+/** How long a loaded game may take to install its automation probe: software WebGL draws its first frames slowly. */
+const AUTOMATION_GRACE_MS = 90000;
+
 /** Waits for the probe to answer on a drawn city, printing the loading steps. */
 async function playable( page, timeoutSeconds ) {
 
@@ -1012,7 +1015,7 @@ async function playable( page, timeoutSeconds ) {
 		const seconds = Math.round( ( Date.now() - started ) / 1000 );
 		if ( now?.error ) throw new Error( `the game could not start: ${now.error.slice( 0, 600 )}` );
 		if ( now?.probe && now.draws > 20 ) return { seconds, state: await page.evaluate( 'window.urbe.automation.state()' ) };
-		if ( now?.loaded && ! now.probe && ( loadedAt ??= Date.now() ) < Date.now() - 15000 ) {
+		if ( now?.loaded && ! now.probe && ( loadedAt ??= Date.now() ) < Date.now() - AUTOMATION_GRACE_MS ) {
 
 			throw new Error( 'the game plays but answers no automation probe; restart Engine so it serves the current source' );
 
