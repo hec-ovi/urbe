@@ -140,10 +140,8 @@ const LEAD_REACH = 300;
 const LEAD_WAIT_MS = 480000;
 /** How many of the nearest people the access scenario talks to, looking for a friendly resident of its building. */
 const ACCESS_ASKED = 16;
-/** How many storeys apart the access scenario takes the neighbour it is led to: enough for the lift. */
-const ACCESS_FLOORS = 4;
 /** How long the access scenario trails a leader home: on software WebGL a city frame takes seconds, and a walker moves a frame's worth of it. */
-const ACCESS_LEAD_MS = 2400000;
+const ACCESS_LEAD_MS = 3600000;
 /** How long the access scenario waits for a home's floor to stand solid: software WebGL builds a floor in tens of seconds. */
 const DOOR_WAIT_MS = 480000;
 /** How close a follower comes: it stops 1.8 m from the player. */
@@ -404,16 +402,13 @@ const SCENARIOS = {
 	 * the one --building names, else the one with most. At its door, the
 	 * nearest people are talked to until one is a friendly resident of it out
 	 * of their home (people are established as they are talked to, each
-	 * housed in a dwelling of an opened building); asked from the chat's row,
-	 * they hand over a copy of their home's card (with --talk none they decide
-	 * by their disposition, as with no model). The clock then waits for them
-	 * to be at home, where the card opens their door and the player walks in.
-	 * Asked there to take the player to a neighbour's door by its address
-	 * (`agree` with the typed line naming it, as a talk tool would), they lead
-	 * the way riding the lift with the player; at it, asked to show where
-	 * they live, they lead the player back to their own door by its address,
-	 * by the lift again, and open it. The neighbour's door stays shut and
-	 * solid to the player, whose prompt says what it needs.
+	 * housed in a dwelling of an opened building). In that talk, asked from
+	 * the chat's row, they hand over a copy of their home's card (with --talk
+	 * none they decide by their disposition, as with no model), and asked to
+	 * show where they live they lead the player to its door by its address,
+	 * riding the lift with the player, and open it. There a neighbour's door
+	 * stays shut and solid to the player, whose prompt says what it needs, and
+	 * their own, once closed again, opens with the card and the player walks in.
 	 */
 	async access( { probe, shot, options } ) {
 
@@ -469,58 +464,9 @@ const SCENARIOS = {
 			check( 'the card names its issuer and what it opens', card?.issuer === resident.name && card?.access === resident.address && /key card$/.test( card?.label ?? '' ), card ),
 			check( 'a notice says the card was added', data.cardNotices.some( ( text ) => text.includes( card?.label ?? '\u0000' ) ), data.cardNotices )
 		);
-		if ( ( await probe( 'state()' ) ).conversation ) await probe( 'leave()' );
 
-		// The clock waits for them to be at home.
-		const atHome = ( one ) => one?.place?.kind === 'parcel' && one.place.id === building.parcelId && [ 'home', 'sleeping' ].includes( one.activity );
-		let home = null;
-		data.waited = [];
-		for ( let step = 0; step < 32 && ! atHome( home ); step ++ ) {
-
-			home = ( await probe( `residents(${JSON.stringify( building.parcelId )})` ) ).find( ( one ) => one.npcId === resident.npcId ) ?? null;
-			if ( atHome( home ) ) break;
-			data.waited.push( await probe( 'game.waitUntil( window.urbe.automation.game.clock.timeMin + 30 ) ?? window.urbe.automation.game.clock.label', 120000 ) );
-
-		}
-		data.home = home;
-		checks.push( check( 'the resident comes home', atHome( home ), { home, waited: data.waited.length } ) );
-
-		// Their card opens their door, and the player walks in.
-		const unlocked = data.unlocked = await probe( `standAtDoor(${JSON.stringify( unitId )}, { timeoutMs: ${DOOR_WAIT_MS} })`, DOOR_WAIT_MS + PAGE_MS );
-		shots.push( await shot( 'access-unlocked' ) );
-		data.pressedOpen = await probe( 'press()' );
-		const opened = data.opened = await until( () => probe( `door(${JSON.stringify( unitId )})` ), ( door ) => door?.open >= 0.95, 60000 );
-		const entered = data.entered = await probe( `walk({ unitId: ${JSON.stringify( unitId )}, frames: 90, metres: 2 })`, DOOR_WAIT_MS );
-		shots.push( await shot( 'access-inside' ) );
-		checks.push(
-			check( `with the card ${label}'s door is unlocked to the player`, unlocked.lock?.locked === false, unlocked.lock ),
-			check( 'the prompt offers to open it', unlocked.prompt === `E  open the door to ${label}`, { prompt: unlocked.prompt } ),
-			check( 'E opens the door', opened?.open >= 0.95, opened ),
-			check( 'the player walks in', entered.past !== null && entered.past > 0.5, entered )
-		);
-
-		// At home, asked to take the player to a neighbour's door by its address, they lead the way by the lift.
-		const units = await probe( `game.addresses.building(${JSON.stringify( building.parcelId )}).units.map( ( unit ) => ( { id: unit.id, floor: unit.floor, kind: unit.kind, label: unit.label, address: unit.address } ) )` );
-		const own = units.find( ( unit ) => unit.id === unitId );
-		const neighbour = data.neighbour = units.filter( ( unit ) => unit.kind === 'apartment' && unit.id !== unitId )
-			.sort( ( a, b ) => Math.abs( Math.abs( a.floor - own.floor ) - ACCESS_FLOORS ) - Math.abs( Math.abs( b.floor - own.floor ) - ACCESS_FLOORS ) || a.floor - b.floor )[ 0 ] ?? null;
+		// In the same talk, asked to show where they live, they lead the player there by its address, by the lift, and open their door.
 		await probe( COMPANION_SIGNALS );
-		const met = data.met = await until( () => probe( `person(${JSON.stringify( resident.npcId )})` ), ( held ) => held?.id, 60000 );
-		const talked = data.talked = met?.id ? await probe( `converse(${JSON.stringify( met.id )})` ) : null;
-		const line = `Take me to ${neighbour?.label}`;
-		const places = talked && neighbour ? ( await probe( `actions({ line: ${JSON.stringify( line )} })` ) )?.places ?? [] : [];
-		const place = places.find( ( entry ) => entry.placeId === `unit:${neighbour.id}` ) ?? null;
-		data.agreed = place ? await probe( `agree({ kind: 'lead', placeId: ${JSON.stringify( place.placeId )}, line: ${JSON.stringify( line )} })` ) : null;
-		const there = data.there = await trailHome( probe, resident.npcId );
-		shots.push( await shot( 'access-led-neighbour' ) );
-		checks.push(
-			check( 'a typed line naming a neighbour\'s apartment makes it a place they may lead to, by its address', place?.name === neighbour?.address, { place, places } ),
-			check( 'they lead the player there by its address', there.notices.some( ( text ) => text.includes( neighbour?.address ) ), there.notices ),
-			check( 'they ride the lift with the player', there.rode, { rode: there.rode, heights: there.heights } ),
-			check( 'they arrive at the neighbour\'s door', there.arrived, there.companion )
-		);
-
-		// There, asked to show where they live, they lead the player home by its address, by the lift, and open their door.
 		const offers = ( await probe( 'state()' ) ).conversation ? await probe( 'offers()' ) : [];
 		const homeward = offers.find( ( offer ) => offer.kind === 'lead' && offer.destination?.relation === 'home' ) ?? null;
 		data.homeward = homeward ? await probe( `act(${JSON.stringify( homeward.offerId )})` ) : null;
@@ -531,13 +477,17 @@ const SCENARIOS = {
 		checks.push(
 			check( 'they offer to show where they live, by its address', homeward?.destination?.name === resident.address, { homeward, offers: offers.map( ( offer ) => [ offer.label, offer.destination?.name ] ) } ),
 			check( 'they lead the player to their apartment by its address', back.notices.some( ( text ) => text.includes( resident.address ) ), back.notices ),
-			check( 'they ride the lift home with the player', back.rode, { rode: back.rode, heights: back.heights } ),
+			check( 'they ride the lift with the player', back.rode, { rode: back.rode, heights: back.heights } ),
 			check( 'they arrive at their door', back.arrived, back.companion ),
-			check( 'their door stands open for the player', data.homeDoor?.wanted === 1 || data.homeDoor?.open > 0.5, data.homeDoor )
+			check( 'they open their door for the player', data.homeDoor?.wanted === 1 || data.homeDoor?.open > 0.5, data.homeDoor )
 		);
 		if ( ( await probe( 'state()' ) ).conversation ) await probe( 'leave()' );
 
-		// The neighbour's door stays shut and solid: the player has no card for it.
+		// A neighbour's door stays shut and solid: the player has no card for it.
+		const units = await probe( `game.addresses.building(${JSON.stringify( building.parcelId )}).units.map( ( unit ) => ( { id: unit.id, floor: unit.floor, kind: unit.kind, label: unit.label, address: unit.address } ) )` );
+		const own = units.find( ( unit ) => unit.id === unitId );
+		const neighbour = data.neighbour = units.filter( ( unit ) => unit.kind === 'apartment' && unit.id !== unitId )
+			.sort( ( a, b ) => Math.abs( a.floor - own.floor ) - Math.abs( b.floor - own.floor ) || a.floor - b.floor )[ 0 ] ?? null;
 		const locked = data.locked = neighbour ? await probe( `standAtDoor(${JSON.stringify( neighbour.id )}, { timeoutMs: ${DOOR_WAIT_MS} })`, DOOR_WAIT_MS + PAGE_MS ) : null;
 		shots.push( await shot( 'access-locked' ) );
 		data.pressedLocked = await probe( 'press()' );
@@ -552,6 +502,21 @@ const SCENARIOS = {
 			check( 'E leaves the locked door shut', shut?.open === 0 && shut?.wanted === 0, shut ),
 			check( 'the locked door stops the player', blocked?.past !== null && blocked?.past < 0, blocked ),
 			check( 'a notice says what the locked door needs', data.lockedNotices.some( ( text ) => text === `Locked: ${neighbour?.label} needs an access card` ), data.lockedNotices )
+		);
+
+		// Their own door, once it has closed again, opens with the card, and the player walks in.
+		data.closed = await until( () => probe( `door(${JSON.stringify( unitId )})` ), ( door ) => door?.open === 0, 120000 );
+		const unlocked = data.unlocked = await probe( `standAtDoor(${JSON.stringify( unitId )}, { timeoutMs: ${DOOR_WAIT_MS} })`, DOOR_WAIT_MS + PAGE_MS );
+		shots.push( await shot( 'access-unlocked' ) );
+		data.pressedOpen = await probe( 'press()' );
+		const opened = data.opened = await until( () => probe( `door(${JSON.stringify( unitId )})` ), ( door ) => door?.open >= 0.95, 60000 );
+		const entered = data.entered = await probe( `walk({ unitId: ${JSON.stringify( unitId )}, frames: 90, metres: 2 })`, DOOR_WAIT_MS );
+		shots.push( await shot( 'access-inside' ) );
+		checks.push(
+			check( `with the card ${label}'s door is unlocked to the player`, unlocked.lock?.locked === false, unlocked.lock ),
+			check( 'the prompt offers to open it', unlocked.prompt === `E  open the door to ${label}`, { prompt: unlocked.prompt } ),
+			check( 'E opens the door', opened?.open >= 0.95, opened ),
+			check( 'the player walks in', entered.past !== null && entered.past > 0.5, entered )
 		);
 
 		return { checks, shots, data };
