@@ -110,6 +110,8 @@ const FLAGS = [
 const STUB_REPLY = 'I stand in for the model, which nobody asked.';
 /** The talk route and the stand-in answer to it: the stream's events. */
 const TALK_PATH = '/api/talk/stream';
+/** What the talk route answers when no model can: people then decide by their disposition (`--talk none`). */
+const TALK_NONE = stub( 'application/json', JSON.stringify( { error: 'no model answers in this probe' } ) );
 const TALK_STUB = stub( 'application/x-ndjson', [
 	{ type: 'delta', text: STUB_REPLY }, { type: 'sentence', index: 0, text: STUB_REPLY }, { type: 'done', reply: STUB_REPLY }
 ].map( ( event ) => `${JSON.stringify( event )}\n` ).join( '' ) );
@@ -136,6 +138,14 @@ const ASKED = 12;
 const LEAD_REACH = 300;
 /** How long the walk behind a leader may take, at 1.4 m/s along the pavement. */
 const LEAD_WAIT_MS = 480000;
+/** How many of the nearest people the access scenario talks to, looking for a friendly resident of its building. */
+const ACCESS_ASKED = 16;
+/** How many storeys apart the access scenario takes the neighbour it is led to: enough for the lift. */
+const ACCESS_FLOORS = 4;
+/** How long the access scenario trails a leader home: on software WebGL a city frame takes seconds, and a walker moves a frame's worth of it. */
+const ACCESS_LEAD_MS = 2400000;
+/** How long the access scenario waits for a home's floor to stand solid: software WebGL builds a floor in tens of seconds. */
+const DOOR_WAIT_MS = 480000;
 /** How close a follower comes: it stops 1.8 m from the player. */
 const FOLLOW_NEAR = 2.5;
 /** Continuity modes of somebody on their way back into their day, or in it. */
@@ -165,6 +175,8 @@ const GRANT = 'game.input.onLockChange( window.urbe.input.locked = true )';
 const CLOCK = 'game.clock.seconds';
 /** The notices on screen now, as the player reads them. */
 const NOTICES = 'game.view.toast.element.querySelectorAll( \'.toast-text\' ).values().map( ( line ) => line.textContent ).toArray()';
+/** Keeps what the companion signals from now on in `game.companion.heard`, each frame's signals as the host takes them. */
+const COMPANION_SIGNALS = 'game && ( ( companion ) => { if ( ! companion.heard ) { const update = companion.update.bind( companion ); companion.heard = []; companion.update = ( request ) => { const signals = update( request ); for ( const signal of signals ) companion.heard.push( JSON.parse( JSON.stringify( signal ) ) ); return signals; }; } return true; } )( window.urbe.automation.game.companion )';
 /** How many of the nearest people the talk scenario walks up to: hair colours near the pack's grey hide a bug in one sample. */
 const TALKS = 6;
 /** Conversations the talk scenario needs before its checks count. */
@@ -387,6 +399,165 @@ const SCENARIOS = {
 	 * that the talk about the place opens by itself when they arrive, with the
 	 * place in the talk request. Leaving it, the person goes back to their day.
 	 */
+	/**
+	 * Addresses, locks and cards in a furnished building with numbered homes,
+	 * the one --building names, else the one with most. At its door, the
+	 * nearest people are talked to until one is a friendly resident of it out
+	 * of their home (people are established as they are talked to, each
+	 * housed in a dwelling of an opened building); asked from the chat's row,
+	 * they hand over a copy of their home's card (with --talk none they decide
+	 * by their disposition, as with no model). The clock then waits for them
+	 * to be at home, where the card opens their door and the player walks in.
+	 * Asked there to take the player to a neighbour's door by its address
+	 * (`agree` with the typed line naming it, as a talk tool would), they lead
+	 * the way riding the lift with the player; at it, asked to show where
+	 * they live, they lead the player back to their own door by its address,
+	 * by the lift again, and open it. The neighbour's door stays shut and
+	 * solid to the player, whose prompt says what it needs.
+	 */
+	async access( { probe, shot, options } ) {
+
+		if ( ( await probe( 'state()' ) ).conversation ) await probe( 'leave()' );
+		const buildings = await probe( 'buildings()' );
+		const building = options.building ? buildings.find( ( entry ) => entry.parcelId === options.building ) : buildings.find( ( entry ) => entry.apartments > 0 );
+		if ( ! building ) return { skipped: 'no furnished building with numbered homes', data: { buildings } };
+		const fps = await probe( 'frameRate({ seconds: 20 })', 20000 + PAGE_MS );
+		const out = ( one ) => one.place && ! ( one.place.kind === 'parcel' && one.place.id === building.parcelId ) && ! [ 'working', 'sleeping' ].includes( one.activity );
+		// At the building's door: software WebGL walks a person a few centimetres a frame, so the people met live near it.
+		const visited = await probe( `visit({ kind: 'parcel', id: ${JSON.stringify( building.parcelId )} }, { timeoutMs: 60000 })`, 60000 + PAGE_MS );
+		const around = await until( () => probe( `people({ limit: ${ACCESS_ASKED} })` ), ( people ) => people.length >= 6, 120000 );
+		let resident = null;
+		const tried = [];
+		for ( const person of around ) {
+
+			const conversation = await probe( `converse(${JSON.stringify( person.id )}, { attempts: 1 })` );
+			if ( conversation?.npcId ) {
+
+				const one = ( await probe( `residents(${JSON.stringify( building.parcelId )})` ) ).find( ( candidate ) => candidate.npcId === conversation.npcId ) ?? null;
+				tried.push( { id: person.id, npcId: conversation.npcId, resident: one && [ one.address, one.disposition, one.activity ] } );
+				// Talking to them still: the card is asked in this talk.
+				if ( one?.unitId && one.disposition === 'friendly' && out( one ) ) {
+
+					resident = one;
+					break;
+
+				}
+
+			}
+			if ( conversation ) await probe( 'leave()' );
+
+		}
+		const data = { building, fps, visited, around: around.length, tried, resident };
+		const checks = [ check( 'a friendly resident is out of their home to talk to', Boolean( resident ), { tried } ) ];
+		if ( ! resident ) return { checks, data };
+		const shots = [];
+		const { unitId, scope } = resident;
+		const label = resident.address.split( ', ' ).at( - 1 );
+
+		// Asked from the chat's row, they hand over a copy of their home's card.
+		const row = ( await probe( 'state()' ) ).chat.actions;
+		const ask = row.find( ( action ) => action.id === `card:${scope}` ) ?? null;
+		data.asked = ask ? await probe( `act(${JSON.stringify( ask.id )})` ) : null;
+		const given = data.given = await until( () => probe( 'access()' ), ( access ) => access.cards.some( ( card ) => card.grants.includes( scope ) ), 30000 );
+		data.cardNotices = await probe( NOTICES );
+		shots.push( await shot( 'access-card-given' ) );
+		const card = given.cards.find( ( one ) => one.grants.includes( scope ) ) ?? null;
+		data.cardChat = ( await probe( 'state()' ) ).chat.lines;
+		checks.push(
+			check( 'the chat\'s row asks for access to their apartment', ask?.label === 'Can you give me access to your apartment?', { row } ),
+			check( 'the friendly resident hands over their home\'s card', Boolean( card ), { cards: given.cards } ),
+			check( 'the card names its issuer and what it opens', card?.issuer === resident.name && card?.access === resident.address && /key card$/.test( card?.label ?? '' ), card ),
+			check( 'a notice says the card was added', data.cardNotices.some( ( text ) => text.includes( card?.label ?? '\u0000' ) ), data.cardNotices )
+		);
+		if ( ( await probe( 'state()' ) ).conversation ) await probe( 'leave()' );
+
+		// The clock waits for them to be at home.
+		const atHome = ( one ) => one?.place?.kind === 'parcel' && one.place.id === building.parcelId && [ 'home', 'sleeping' ].includes( one.activity );
+		let home = null;
+		data.waited = [];
+		for ( let step = 0; step < 32 && ! atHome( home ); step ++ ) {
+
+			home = ( await probe( `residents(${JSON.stringify( building.parcelId )})` ) ).find( ( one ) => one.npcId === resident.npcId ) ?? null;
+			if ( atHome( home ) ) break;
+			data.waited.push( await probe( 'game.waitUntil( window.urbe.automation.game.clock.timeMin + 30 ) ?? window.urbe.automation.game.clock.label', 120000 ) );
+
+		}
+		data.home = home;
+		checks.push( check( 'the resident comes home', atHome( home ), { home, waited: data.waited.length } ) );
+
+		// Their card opens their door, and the player walks in.
+		const unlocked = data.unlocked = await probe( `standAtDoor(${JSON.stringify( unitId )}, { timeoutMs: ${DOOR_WAIT_MS} })`, DOOR_WAIT_MS + PAGE_MS );
+		shots.push( await shot( 'access-unlocked' ) );
+		data.pressedOpen = await probe( 'press()' );
+		const opened = data.opened = await until( () => probe( `door(${JSON.stringify( unitId )})` ), ( door ) => door?.open >= 0.95, 60000 );
+		const entered = data.entered = await probe( `walk({ unitId: ${JSON.stringify( unitId )}, frames: 90, metres: 2 })`, DOOR_WAIT_MS );
+		shots.push( await shot( 'access-inside' ) );
+		checks.push(
+			check( `with the card ${label}'s door is unlocked to the player`, unlocked.lock?.locked === false, unlocked.lock ),
+			check( 'the prompt offers to open it', unlocked.prompt === `E  open the door to ${label}`, { prompt: unlocked.prompt } ),
+			check( 'E opens the door', opened?.open >= 0.95, opened ),
+			check( 'the player walks in', entered.past !== null && entered.past > 0.5, entered )
+		);
+
+		// At home, asked to take the player to a neighbour's door by its address, they lead the way by the lift.
+		const units = await probe( `game.addresses.building(${JSON.stringify( building.parcelId )}).units.map( ( unit ) => ( { id: unit.id, floor: unit.floor, kind: unit.kind, label: unit.label, address: unit.address } ) )` );
+		const own = units.find( ( unit ) => unit.id === unitId );
+		const neighbour = data.neighbour = units.filter( ( unit ) => unit.kind === 'apartment' && unit.id !== unitId )
+			.sort( ( a, b ) => Math.abs( Math.abs( a.floor - own.floor ) - ACCESS_FLOORS ) - Math.abs( Math.abs( b.floor - own.floor ) - ACCESS_FLOORS ) || a.floor - b.floor )[ 0 ] ?? null;
+		await probe( COMPANION_SIGNALS );
+		const met = data.met = await until( () => probe( `person(${JSON.stringify( resident.npcId )})` ), ( held ) => held?.id, 60000 );
+		const talked = data.talked = met?.id ? await probe( `converse(${JSON.stringify( met.id )})` ) : null;
+		const line = `Take me to ${neighbour?.label}`;
+		const places = talked && neighbour ? ( await probe( `actions({ line: ${JSON.stringify( line )} })` ) )?.places ?? [] : [];
+		const place = places.find( ( entry ) => entry.placeId === `unit:${neighbour.id}` ) ?? null;
+		data.agreed = place ? await probe( `agree({ kind: 'lead', placeId: ${JSON.stringify( place.placeId )}, line: ${JSON.stringify( line )} })` ) : null;
+		const there = data.there = await trailHome( probe, resident.npcId );
+		shots.push( await shot( 'access-led-neighbour' ) );
+		checks.push(
+			check( 'a typed line naming a neighbour\'s apartment makes it a place they may lead to, by its address', place?.name === neighbour?.address, { place, places } ),
+			check( 'they lead the player there by its address', there.notices.some( ( text ) => text.includes( neighbour?.address ) ), there.notices ),
+			check( 'they ride the lift with the player', there.rode, { rode: there.rode, heights: there.heights } ),
+			check( 'they arrive at the neighbour\'s door', there.arrived, there.companion )
+		);
+
+		// There, asked to show where they live, they lead the player home by its address, by the lift, and open their door.
+		const offers = ( await probe( 'state()' ) ).conversation ? await probe( 'offers()' ) : [];
+		const homeward = offers.find( ( offer ) => offer.kind === 'lead' && offer.destination?.relation === 'home' ) ?? null;
+		data.homeward = homeward ? await probe( `act(${JSON.stringify( homeward.offerId )})` ) : null;
+		const back = data.back = await trailHome( probe, resident.npcId );
+		await sleep( 2000 );
+		data.homeDoor = await probe( `door(${JSON.stringify( unitId )})` );
+		shots.push( await shot( 'access-led-home' ) );
+		checks.push(
+			check( 'they offer to show where they live, by its address', homeward?.destination?.name === resident.address, { homeward, offers: offers.map( ( offer ) => [ offer.label, offer.destination?.name ] ) } ),
+			check( 'they lead the player to their apartment by its address', back.notices.some( ( text ) => text.includes( resident.address ) ), back.notices ),
+			check( 'they ride the lift home with the player', back.rode, { rode: back.rode, heights: back.heights } ),
+			check( 'they arrive at their door', back.arrived, back.companion ),
+			check( 'their door stands open for the player', data.homeDoor?.wanted === 1 || data.homeDoor?.open > 0.5, data.homeDoor )
+		);
+		if ( ( await probe( 'state()' ) ).conversation ) await probe( 'leave()' );
+
+		// The neighbour's door stays shut and solid: the player has no card for it.
+		const locked = data.locked = neighbour ? await probe( `standAtDoor(${JSON.stringify( neighbour.id )}, { timeoutMs: ${DOOR_WAIT_MS} })`, DOOR_WAIT_MS + PAGE_MS ) : null;
+		shots.push( await shot( 'access-locked' ) );
+		data.pressedLocked = await probe( 'press()' );
+		data.lockedNotices = await probe( NOTICES );
+		await sleep( 1500 );
+		const shut = data.shut = neighbour ? await probe( `door(${JSON.stringify( neighbour.id )})` ) : null;
+		const blocked = data.blocked = neighbour ? await probe( `walk({ unitId: ${JSON.stringify( neighbour.id )}, frames: 60 })`, DOOR_WAIT_MS ) : null;
+		checks.push(
+			check( 'the player stands at the neighbour\'s door', locked?.placed === true, locked ),
+			check( 'the neighbour\'s door is locked to the player', locked?.lock?.locked === true, locked?.lock ),
+			check( 'the prompt says what the door needs', locked?.prompt === `Locked: ${neighbour?.label} needs an access card`, { prompt: locked?.prompt } ),
+			check( 'E leaves the locked door shut', shut?.open === 0 && shut?.wanted === 0, shut ),
+			check( 'the locked door stops the player', blocked?.past !== null && blocked?.past < 0, blocked ),
+			check( 'a notice says what the locked door needs', data.lockedNotices.some( ( text ) => text === `Locked: ${neighbour?.label} needs an access card` ), data.lockedNotices )
+		);
+
+		return { checks, shots, data };
+
+	},
+
 	async lead( { probe, shot, talk } ) {
 
 		const asked = await askAlong( probe, ( offers ) => offers
@@ -833,7 +1004,9 @@ async function play( session, url, out, options, report ) {
 	const page = await session.open();
 	watch( page, report, options );
 	await page.send( 'Page.addScriptToEvaluateOnNewDocument', { source: QUIET_VITE } );
-	await page.send( 'Emulation.setDeviceMetricsOverride', { ...VIEWPORT, deviceScaleFactor: 1, mobile: false } );
+	// A smaller page draws fewer pixels a frame, which software WebGL pays for by the pixel.
+	const [ width, height ] = ( options.viewport ?? `${VIEWPORT.width}x${VIEWPORT.height}` ).split( 'x' ).map( Number );
+	await page.send( 'Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false } );
 	await page.navigate( url.href );
 	report.ready = await playable( page, options.timeout );
 	console.log( `playable in ${report.ready.seconds} s: ${report.ready.state.backend} ${report.ready.state.tier}, ${report.ready.state.crowd} people` );
@@ -870,7 +1043,7 @@ function parse( argv ) {
 	const { values, positionals } = parseArgs( { args: argv, allowPositionals: true, options: {
 		out: { type: 'string' }, base: { type: 'string', default: 'http://localhost:5306' },
 		browser: { type: 'string' }, backend: { type: 'string', default: 'webgl' },
-		talk: { type: 'string', default: 'stub' }, 'throwaway-engine': { type: 'boolean', default: false },
+		talk: { type: 'string', default: 'stub' }, 'throwaway-engine': { type: 'boolean', default: false }, building: { type: 'string' }, viewport: { type: 'string' },
 		line: { type: 'string', default: 'Hi. What do you do around here?' }, scene: { type: 'string' },
 		'advance-to': { type: 'string' }, quest: { type: 'string' }, shots: { type: 'string' },
 		crowd: { type: 'string', default: '120' }, timeout: { type: 'string', default: '600' }
@@ -882,13 +1055,14 @@ function parse( argv ) {
 		! target && 'name a world id or a play URL',
 		unknown.length && `unknown scenario ${unknown.join( ', ' )}; known: ${Object.keys( SCENARIOS ).join( ', ' )}`,
 		! [ 'webgpu', 'webgl' ].includes( values.backend ) && '--backend is webgl or webgpu',
-		! [ 'stub', 'live' ].includes( values.talk ) && '--talk is stub or live',
+		! [ 'stub', 'live', 'none' ].includes( values.talk ) && '--talk is stub, live or none',
 		! /^\d+$/.test( values.crowd ) && '--crowd is a whole number',
+		values.viewport !== undefined && ! /^\d{3,4}x\d{3,4}$/.test( values.viewport ) && '--viewport is <width>x<height>',
 		! /^\d+$/.test( values.timeout ) && '--timeout is whole seconds'
 	].filter( Boolean );
 	if ( problems.length ) {
 
-		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [spawn] [voice] [follow] [lead] [scene] [story] [ui] [look] [crowd] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live] [--throwaway-engine] [--line text] [--scene id] [--advance-to step] [--quest id] [--shots file.json] [--crowd n] [--timeout seconds]` );
+		console.error( `play-probe: ${problems.join( '; ' )}\nusage: node compose/play-probe.mjs <world id | play url> [talk] [chat] [spawn] [voice] [follow] [lead] [scene] [story] [ui] [look] [crowd] [access] [--out dir] [--base url] [--browser path] [--backend webgl|webgpu] [--talk stub|live|none] [--throwaway-engine] [--building parcel] [--viewport WxH] [--line text] [--scene id] [--advance-to step] [--quest id] [--shots file.json] [--crowd n] [--timeout seconds]` );
 		process.exit( 2 );
 
 	}
@@ -999,6 +1173,13 @@ function watch( page, report, { talk, scenarios } ) {
 
 				live.set( networkId, entry );
 				return page.send( 'Fetch.continueRequest', { requestId } );
+
+			}
+			if ( talk === 'none' ) {
+
+				// No model answers: people decide what they are asked by their disposition.
+				Object.assign( entry, { status: 502, stubbed: true } );
+				return page.send( 'Fetch.fulfillRequest', { requestId, responseCode: 502, ...TALK_NONE } );
 
 			}
 			Object.assign( entry, { status: 200, stubbed: true } );
@@ -1166,6 +1347,32 @@ function each( name, talks, compare ) {
 		.filter( ( [ , fields ] ) => Object.keys( fields ).length ) );
 
 	return check( name, Object.keys( detail ).length === 0, detail );
+
+}
+
+/**
+ * Trails the companion `npcId` (`trail`, riding a lift with them) until they
+ * have arrived and their talk opens, then reads what the companion signalled
+ * meanwhile (`COMPANION_SIGNALS` installed first): the notices the player
+ * read, whether the leader rode a lift with the player and climbed or fell a
+ * storey or more, and whether they arrived within a step of their place.
+ */
+async function trailHome( probe, npcId ) {
+
+	const started = await until( () => probe( 'companion()' ), ( current ) => current?.npcId === npcId && current.mode !== null, 60000 );
+	const trailed = started?.npcId === npcId ? await probe( `trail(${JSON.stringify( npcId )}, { timeoutMs: ${ACCESS_LEAD_MS} })`, ACCESS_LEAD_MS + PAGE_MS ) : null;
+	const heard = await probe( 'game.companion.heard.splice( 0 )' );
+	const samples = trailed?.samples ?? [];
+	const heights = samples.map( ( sample ) => sample.y );
+	const companion = trailed?.companion ?? null;
+	return {
+		started, companion, heard, samples: samples.length,
+		notices: heard.filter( ( signal ) => signal.notice ).map( ( signal ) => signal.notice ),
+		heights: heights.length ? [ Math.min( ...heights ), Math.max( ...heights ) ] : null,
+		rode: samples.some( ( sample ) => sample.lift && sample.playerLift === sample.lift ) && heights.length > 0 && Math.max( ...heights ) - Math.min( ...heights ) > 2.5,
+		arrived: [ 'arrived', 'ready', 'talking' ].includes( companion?.phase ) || ( companion?.walk === 'arrived' && ( companion.destination?.distance ?? 1e9 ) <= 0.6 ) || heard.some( ( signal ) => signal.kind === 'arrival' ),
+		conversation: trailed?.conversation ?? null
+	};
 
 }
 
